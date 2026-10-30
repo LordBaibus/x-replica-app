@@ -18,7 +18,8 @@
 # tickets (Contact us, Report a problem, ID verification, data archive) live in
 # its sections 17-19, so a build made from this code needs that re-run or those
 # screens show an error. No new packages or Android / iOS permissions were
-# added, so this file needs no other change.
+# added; the only addition is the "Generate the app icon" step (X logo, from
+# assets/icon via flutter_launcher_icons).
 #
 # ── iOS with a FREE Apple developer account ─────────────────────────────────
 # Codemagic can only sign iOS apps with certificates from the PAID Apple
@@ -88,6 +89,13 @@ definitions:
         flutter --version
         flutter pub get
 
+    # Draws the X logo icon into the Android and iOS projects (settings are in
+    # pubspec.yaml). Harmless when the icons were already generated and
+    # committed.
+    - &launcher_icons
+      name: Generate the app icon (X logo)
+      script: dart run flutter_launcher_icons
+
     - &analyze
       name: Static analysis (does not block the build)
       script: flutter analyze --no-fatal-infos --no-fatal-warnings
@@ -133,6 +141,7 @@ workflows:
     triggering: *push_to_main
     scripts:
       - *get_packages
+      - *launcher_icons
       - *analyze
       - *run_tests
       - *dart_defines
@@ -212,6 +221,7 @@ workflows:
     triggering: *push_to_main
     scripts:
       - *get_packages
+      - *launcher_icons
       - *analyze
       - *run_tests
       - *dart_defines
@@ -259,6 +269,7 @@ workflows:
         - $FLUTTER_ROOT/.pub-cache
     scripts:
       - *get_packages
+      - *launcher_icons
       - *analyze
       - *run_tests
       - *dart_defines

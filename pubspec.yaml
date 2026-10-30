@@ -47,5 +47,20 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^6.0.0
 
+  # Makes the app icon (the X logo) for Android and iOS from assets/icon.
+  # Run once after changing the pictures:  dart run flutter_launcher_icons
+  flutter_launcher_icons: ^0.14.3
+
+# App icon: white X logo on black. Android gets an adaptive icon (the X on a
+# black background layer), iOS gets the flat 1024 px picture without alpha.
+flutter_launcher_icons:
+  image_path: "assets/icon/app_icon.png"
+  android: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#000000"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
+  ios: true
+  remove_alpha_ios: true
+
 flutter:
   uses-material-design: true

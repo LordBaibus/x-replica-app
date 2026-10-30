@@ -7,6 +7,7 @@ import '../core/format.dart';
 import '../core/ui_helpers.dart';
 import '../models/models.dart';
 import '../services/api.dart';
+import '../widgets/linked_text.dart';
 import '../widgets/avatar.dart';
 import '../widgets/badges.dart';
 import '../widgets/follow_carousel.dart';
@@ -714,7 +715,7 @@ class ProfileViewState extends State<ProfileView> {
                 ),
               if (profile.bio.isNotEmpty) ...[
                 const SizedBox(height: 10),
-                Text(
+                LinkedText(
                   profile.bio,
                   style: TextStyle(color: p.text, fontSize: 15, height: 1.3),
                 ),

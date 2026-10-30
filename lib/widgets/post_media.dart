@@ -3,13 +3,24 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 
 import '../core/app_palette.dart';
+import '../core/format.dart';
 import '../core/ui_helpers.dart';
+import '../core/x_icons.dart';
 import '../models/models.dart';
+import '../screens/compose_post_screen.dart';
 import '../screens/post_detail_screen.dart';
+import '../screens/profile_view.dart';
 import '../screens/report_screens.dart';
+import '../services/api.dart';
+import 'anchored_popup.dart' show rectOf;
+import 'avatar.dart';
+import 'badges.dart';
 import 'popover_menu.dart';
-import 'post_menus.dart' show copyPostLink;
+import 'post_card.dart' show repostGreen;
+import 'post_menus.dart' show copyPostLink, showRepostPopup, RepostChoice;
+import 'reply_guard.dart';
 import 'share_post_sheet.dart';
+import 'video_reaction.dart';
 
 /// The pictures of a post, laid out like X: one wide picture, two portrait
 /// pictures side by side, or a 3 / 4 picture grid, with rounded corners and a
@@ -126,9 +137,19 @@ class PostMedia extends StatelessWidget {
 
 enum _PhotoAction { share, copyPost, copyImage, goToPost, report }
 
-/// Full-screen picture viewer: swipe between the post's pictures. With the
-/// [post] it belongs to, the "..." button at the top right opens the picture
-/// menu (share, copy links, go to post, report).
+const _vWhite = Color(0xFFFFFFFF);
+const _vGlass = Color(0x992A2D31);
+const _vBar = Color(0xFF202327);
+
+/// Full-screen picture viewer, laid out like X:
+///
+/// * the picture fills the page (swipe between the post's pictures, pinch to
+///   zoom, one tap hides / shows everything else);
+/// * round back button top left, "..." menu top right;
+/// * "From <author>" label, then reply / repost / like pills with bookmark and
+///   share buttons, then the "Post your reply" bar at the bottom.
+///
+/// Without a [post] it is only the picture and the back button.
 class ImageViewerScreen extends StatefulWidget {
   const ImageViewerScreen({
     super.key,
@@ -148,10 +169,129 @@ class ImageViewerScreen extends StatefulWidget {
 class _ImageViewerScreenState extends State<ImageViewerScreen> {
   late final PageController _pages = PageController(initialPage: widget.initial);
   late int _index = widget.initial;
+  late Post? _post = widget.post;
+  bool _overlays = true;
   final GlobalKey _moreKey = GlobalKey();
 
+  @override
+  void dispose() {
+    _pages.dispose();
+    super.dispose();
+  }
+
+  // ------------------------------------------------------------- actions
+
+  Future<void> _like() async {
+    final before = _post;
+    if (before == null) return;
+    final next = before.copyWith(
+      likedByMe: !before.likedByMe,
+      likeCount: before.likeCount + (before.likedByMe ? -1 : 1),
+    );
+    setState(() => _post = next);
+    try {
+      await Api.setLike(before.id, like: next.likedByMe);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _post = before);
+      showError(context, e);
+    }
+  }
+
+  Future<void> _repost() async {
+    final before = _post;
+    if (before == null) return;
+    final next = before.copyWith(
+      repostedByMe: !before.repostedByMe,
+      repostCount: before.repostCount + (before.repostedByMe ? -1 : 1),
+    );
+    setState(() => _post = next);
+    try {
+      await Api.setRepost(before.id, reposted: next.repostedByMe);
+      if (mounted) {
+        showInfo(context, next.repostedByMe ? 'You reposted' : 'Repost removed');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _post = before);
+      showError(context, e);
+    }
+  }
+
+  Future<void> _repostMenu(Rect anchor) async {
+    final post = _post;
+    if (post == null) return;
+    final choice = await showRepostPopup(
+      context,
+      anchor: anchor,
+      reposted: post.repostedByMe,
+    );
+    if (choice == null || !mounted) return;
+    switch (choice) {
+      case RepostChoice.repost:
+      case RepostChoice.undo:
+        await _repost();
+      case RepostChoice.quote:
+        final posted = await Navigator.of(context).push<bool>(
+          appRoute(ComposePostScreen(quoting: post), fullscreen: true),
+        );
+        if (posted == true && mounted) {
+          setState(() => _post = post.copyWith(repostCount: post.repostCount + 1));
+          showSuccess(context, 'Your quote was posted');
+        }
+      case RepostChoice.video:
+        if (await reactWithVideo(context, post) && mounted) {
+          setState(() => _post = post.copyWith(repostCount: post.repostCount + 1));
+        }
+    }
+  }
+
+  Future<void> _bookmark() async {
+    final before = _post;
+    if (before == null) return;
+    final saved = !before.bookmarkedByMe;
+    final next = before.copyWith(
+      bookmarkedByMe: saved,
+      bookmarkCount:
+          (before.bookmarkCount + (saved ? 1 : -1)).clamp(0, 1 << 31).toInt(),
+    );
+    setState(() => _post = next);
+    try {
+      await Api.setBookmark(before.id, bookmarked: saved);
+      if (mounted) {
+        showInfo(
+          context,
+          saved ? 'Added to your Bookmarks' : 'Removed from your Bookmarks',
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _post = before);
+      showError(context, e);
+    }
+  }
+
+  Future<void> _reply() async {
+    final post = _post;
+    if (post == null) return;
+    if (!await ensureCanReply(context, post) || !mounted) return;
+    final posted = await Navigator.of(context).push<bool>(
+      appRoute(ComposePostScreen(replyTo: post), fullscreen: true),
+    );
+    if (posted == true && mounted) {
+      setState(() => _post = post.copyWith(replyCount: post.replyCount + 1));
+      showSuccess(context, 'Your reply was sent');
+    }
+  }
+
+  void _openAuthor() {
+    final post = _post;
+    if (post == null) return;
+    Navigator.of(context).push(appRoute(ProfileScreen(userId: post.userId)));
+  }
+
   Future<void> _openMenu() async {
-    final post = widget.post;
+    final post = _post;
     if (post == null) return;
     final pick = await showPopoverMenu<_PhotoAction>(
       context,
@@ -204,19 +344,205 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _pages.dispose();
-    super.dispose();
+  // ------------------------------------------------------------- pieces
+
+  Widget _circle(IconData icon, VoidCallback onTap, {Key? key}) {
+    return GestureDetector(
+      key: key,
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 40,
+        height: 40,
+        decoration: const BoxDecoration(color: _vGlass, shape: BoxShape.circle),
+        child: Icon(icon, size: 22, color: _vWhite),
+      ),
+    );
+  }
+
+  Widget _pill({
+    required List<XShape> icon,
+    required int count,
+    required VoidCallback onTap,
+    Color color = _vWhite,
+    void Function(Rect)? onAnchorTap,
+  }) {
+    return Expanded(
+      child: Builder(
+        builder: (ctx) => GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: onAnchorTap == null ? onTap : () => onAnchorTap(rectOf(ctx)),
+          child: Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: _vGlass,
+              borderRadius: BorderRadius.circular(22),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                XIcon(icon, size: 21, color: color),
+                if (count > 0) ...[
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      compactCount(count),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: color,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _round(List<XShape> icon, VoidCallback onTap, {Color color = _vWhite}) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 44,
+        height: 44,
+        decoration: const BoxDecoration(color: _vGlass, shape: BoxShape.circle),
+        child: Center(child: XIcon(icon, size: 20, color: color)),
+      ),
+    );
+  }
+
+  Widget _fromLabel(Post post) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: _openAuthor,
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(10, 6, 12, 6),
+        decoration: BoxDecoration(
+          color: _vGlass,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'From ',
+              style: TextStyle(
+                color: Color(0xFFD0D3D6),
+                fontSize: 15,
+                decoration: TextDecoration.none,
+              ),
+            ),
+            Avatar(
+              url: post.avatarUrl,
+              name: post.authorName,
+              size: 20,
+              square: Avatar.isSquare(post.authorVerified),
+            ),
+            const SizedBox(width: 6),
+            Flexible(
+              child: NameWithBadge(
+                name: post.authorName,
+                verified: post.authorVerified,
+                locked: post.authorProtected,
+                badgeSize: 15,
+                style: const TextStyle(
+                  color: _vWhite,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                  decoration: TextDecoration.none,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bottom(Post post) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _fromLabel(post),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                _pill(icon: XIcons.reply, count: post.replyCount, onTap: _reply),
+                const SizedBox(width: 8),
+                _pill(
+                  icon: XIcons.repost,
+                  count: post.repostCount,
+                  onTap: _repost,
+                  color: post.repostedByMe ? repostGreen : _vWhite,
+                  onAnchorTap: _repostMenu,
+                ),
+                const SizedBox(width: 8),
+                _pill(
+                  icon: post.likedByMe ? XIcons.likeFill : XIcons.like,
+                  count: post.likeCount,
+                  onTap: _like,
+                  color: post.likedByMe ? AppPalette.like : _vWhite,
+                ),
+                const SizedBox(width: 8),
+                _round(
+                  post.bookmarkedByMe ? XIcons.bookmarkFill : XIcons.bookmark,
+                  _bookmark,
+                  color: post.bookmarkedByMe ? const Color(0xFF1D9BF0) : _vWhite,
+                ),
+                const SizedBox(width: 8),
+                _round(XIcons.share, () => showSharePostSheet(context, post)),
+              ],
+            ),
+            const SizedBox(height: 10),
+            GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: _reply,
+              child: Container(
+                width: double.infinity,
+                height: 48,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 22),
+                decoration: BoxDecoration(
+                  color: _vBar,
+                  borderRadius: BorderRadius.circular(24),
+                ),
+                child: const Text(
+                  'Post your reply',
+                  style: TextStyle(
+                    color: Color(0xFFB0B4B8),
+                    fontSize: 17,
+                    decoration: TextDecoration.none,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final post = _post;
     return ColoredBox(
       color: const Color(0xFF000000),
       child: DefaultTextStyle(
         style: const TextStyle(
-          color: Color(0xFFFFFFFF),
+          color: _vWhite,
           fontSize: 16,
           decoration: TextDecoration.none,
         ),
@@ -226,81 +552,77 @@ class _ImageViewerScreenState extends State<ImageViewerScreen> {
               controller: _pages,
               itemCount: widget.urls.length,
               onPageChanged: (i) => setState(() => _index = i),
-              itemBuilder: (context, i) => InteractiveViewer(
-                minScale: 1,
-                maxScale: 4,
-                child: Center(
-                  child: CachedNetworkImage(
-                    imageUrl: widget.urls[i],
-                    fit: BoxFit.contain,
-                    placeholder: (context, url) =>
-                        const CupertinoActivityIndicator(),
-                    errorWidget: (context, url, error) => const Icon(
-                      CupertinoIcons.photo,
-                      size: 48,
-                      color: Color(0xFF71767B),
+              itemBuilder: (context, i) => GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => setState(() => _overlays = !_overlays),
+                child: InteractiveViewer(
+                  minScale: 1,
+                  maxScale: 4,
+                  child: Center(
+                    child: CachedNetworkImage(
+                      imageUrl: widget.urls[i],
+                      fit: BoxFit.contain,
+                      placeholder: (context, url) =>
+                          const CupertinoActivityIndicator(),
+                      errorWidget: (context, url, error) => const Icon(
+                        CupertinoIcons.photo,
+                        size: 48,
+                        color: Color(0xFF71767B),
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
-            SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.all(8),
-                child: Row(
-                  children: [
-                    GestureDetector(
-                      behavior: HitTestBehavior.opaque,
-                      onTap: () => Navigator.of(context).maybePop(),
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: const BoxDecoration(
-                          color: Color(0x99000000),
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          CupertinoIcons.xmark,
-                          size: 20,
-                          color: Color(0xFFFFFFFF),
-                        ),
-                      ),
-                    ),
-                    const Spacer(),
-                    if (widget.urls.length > 1)
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0x99000000),
-                          borderRadius: BorderRadius.circular(14),
-                        ),
-                        child: Text('${_index + 1} / ${widget.urls.length}'),
-                      ),
-                    if (widget.post != null) ...[
-                      const SizedBox(width: 8),
-                      GestureDetector(
-                        key: _moreKey,
-                        behavior: HitTestBehavior.opaque,
-                        onTap: _openMenu,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: Color(0x99000000),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            CupertinoIcons.ellipsis,
-                            size: 20,
-                            color: Color(0xFFFFFFFF),
+            Positioned.fill(
+              child: IgnorePointer(
+                ignoring: !_overlays,
+                child: AnimatedOpacity(
+                  opacity: _overlays ? 1 : 0,
+                  duration: const Duration(milliseconds: 180),
+                  child: Column(
+                    children: [
+                      SafeArea(
+                        bottom: false,
+                        child: Padding(
+                          padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+                          child: Row(
+                            children: [
+                              _circle(
+                                CupertinoIcons.arrow_left,
+                                () => Navigator.of(context).maybePop(),
+                              ),
+                              const Spacer(),
+                              if (widget.urls.length > 1)
+                                Container(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: _vGlass,
+                                    borderRadius: BorderRadius.circular(14),
+                                  ),
+                                  child: Text(
+                                    '${_index + 1} / ${widget.urls.length}',
+                                  ),
+                                ),
+                              if (post != null) ...[
+                                const SizedBox(width: 8),
+                                _circle(
+                                  CupertinoIcons.ellipsis,
+                                  _openMenu,
+                                  key: _moreKey,
+                                ),
+                              ],
+                            ],
                           ),
                         ),
                       ),
+                      const Spacer(),
+                      if (post != null) _bottom(post),
                     ],
-                  ],
+                  ),
                 ),
               ),
             ),

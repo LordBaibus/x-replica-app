@@ -1,6 +1,6 @@
 {
-    "name": "x_replica",
-    "short_name": "x_replica",
+    "name": "X Replica",
+    "short_name": "X Replica",
     "start_url": ".",
     "display": "standalone",
     "background_color": "#0175C2",

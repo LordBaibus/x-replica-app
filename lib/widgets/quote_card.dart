@@ -7,6 +7,7 @@ import '../core/app_palette.dart';
 import '../models/models.dart';
 import 'avatar.dart';
 import 'badges.dart';
+import 'linked_text.dart';
 
 /// The small card of a quoted post (inside a quote post or in the composer).
 /// With a picture it is laid out like on X: the picture on the left, the text
@@ -56,7 +57,7 @@ class QuoteCard extends StatelessWidget {
           _picture(p, width: 104, height: 116),
           const SizedBox(width: 12),
           Expanded(
-            child: Text(
+            child: LinkedText(
               quote.content,
               maxLines: 6,
               overflow: TextOverflow.ellipsis,
@@ -68,7 +69,7 @@ class QuoteCard extends StatelessWidget {
     } else if (hasImage) {
       body = _picture(p, height: 140);
     } else {
-      body = Text(
+      body = LinkedText(
         quote.content,
         maxLines: 6,
         overflow: TextOverflow.ellipsis,

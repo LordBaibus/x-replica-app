@@ -11,6 +11,7 @@ import 'anchored_popup.dart';
 import 'avatar.dart';
 import 'badges.dart';
 import '../screens/community_notes_screen.dart';
+import 'linked_text.dart';
 import 'poll_view.dart';
 import 'post_media.dart';
 import 'post_video.dart';
@@ -50,6 +51,7 @@ class PostCard extends StatelessWidget {
     this.onShare,
     this.onMore,
     this.onGrok,
+    this.detailTrailing,
     this.onOpen,
     this.onDelete,
     this.onOpenQuote,
@@ -82,6 +84,10 @@ class PostCard extends StatelessWidget {
   /// Opens Grok with this post.
   final VoidCallback? onGrok;
 
+  /// Detail layout only: replaces the Grok / "..." buttons at the right of the
+  /// author row (the page header carries those instead), e.g. Follow.
+  final Widget? detailTrailing;
+
   /// Opens the post with its replies.
   final VoidCallback? onOpen;
   final VoidCallback? onDelete;
@@ -96,28 +102,17 @@ class PostCard extends StatelessWidget {
   final VoidCallback? onOpenVideo;
   final bool showDivider;
 
-  static final RegExp _tokens = RegExp(r'(@[A-Za-z0-9_]+|#[A-Za-z0-9_]+)');
-
-  /// Post text with @mentions and #hashtags in the accent colour.
-  TextSpan _body(AppPalette p, double fontSize) {
-    final style = TextStyle(color: p.text, fontSize: fontSize, height: 1.3);
-    final spans = <InlineSpan>[];
-    var last = 0;
-    for (final m in _tokens.allMatches(post.content)) {
-      if (m.start > last) {
-        spans.add(TextSpan(text: post.content.substring(last, m.start)));
-      }
-      spans.add(TextSpan(
-        text: m.group(0),
-        style: TextStyle(color: p.accent),
-      ));
-      last = m.end;
-    }
-    if (last < post.content.length) {
-      spans.add(TextSpan(text: post.content.substring(last)));
-    }
-    return TextSpan(style: style, children: spans);
-  }
+  /// Post text; @mentions open the profile, #hashtags open search.
+  Widget _body(AppPalette p, double fontSize) => LinkedText(
+        post.content,
+        style: TextStyle(
+          color: p.text,
+          fontSize: fontSize,
+          height: 1.3,
+          fontWeight: FontWeight.w400,
+          decoration: TextDecoration.none,
+        ),
+      );
 
   /// Poll, quote, disclosures and location: the same in every layout.
   List<Widget> _extras(AppPalette p) {
@@ -369,7 +364,7 @@ class PostCard extends StatelessWidget {
                       if (post.content.isNotEmpty)
                         Padding(
                           padding: const EdgeInsets.only(top: 2),
-                          child: Text.rich(_body(p, 15)),
+                          child: _body(p, 15),
                         ),
                       _media(12),
                       ..._extras(p),
@@ -540,13 +535,13 @@ class PostCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              _replyButtons(context, p),
+              detailTrailing ?? _replyButtons(context, p),
             ],
           ),
           if (post.content.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 14),
-              child: Text.rich(_body(p, 18)),
+              child: _body(p, 18),
             ),
           _media(14),
           ..._extras(p),

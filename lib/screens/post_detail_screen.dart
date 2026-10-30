@@ -5,14 +5,18 @@ import '../core/app_icons.dart';
 import '../core/app_palette.dart';
 import '../core/ui_helpers.dart';
 import '../models/models.dart';
+import '../services/ai_service.dart';
 import '../services/api.dart';
+import '../widgets/ai_dialogs.dart' show AiGlyph;
 import '../widgets/anchored_popup.dart';
+import '../widgets/grok_post_sheet.dart';
 import '../widgets/post_card.dart';
 import '../widgets/post_menus.dart';
 import '../widgets/post_tile.dart';
 import '../widgets/reply_guard.dart';
 import '../widgets/responsive.dart';
 import '../widgets/state_views.dart';
+import 'chat_view.dart';
 import 'compose_post_screen.dart';
 import 'community_notes_screen.dart';
 import 'post_extra_screens.dart';
@@ -46,6 +50,82 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
     _load();
     _loadAncestors();
     _loadNoteInfo();
+    _loadAuthor();
+    AiAssist.grokReplied.addListener(_onGrokReplied);
+  }
+
+  @override
+  void dispose() {
+    AiAssist.grokReplied.removeListener(_onGrokReplied);
+    super.dispose();
+  }
+
+  void _onGrokReplied() {
+    if (mounted) _load(silent: true);
+  }
+
+  // The author's follow state (for the Follow / Message button).
+  Profile? _author;
+
+  Future<void> _loadAuthor() async {
+    if (_post.userId == Api.uid) return;
+    final id = _post.userId;
+    try {
+      final who = await Api.getProfile(id);
+      if (mounted && _post.userId == id) setState(() => _author = who);
+    } catch (_) {}
+  }
+
+  Future<void> _toggleFollow() async {
+    final before = _author;
+    if (before == null) return;
+    final after = before.afterFollowTap();
+    setState(() => _author = after);
+    try {
+      await Api.setFollow(
+        before.id,
+        follow: after.followedByMe || after.requestedByMe,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _author = before);
+      showError(context, e);
+    }
+  }
+
+  /// "Follow" for people I do not follow, "Message" for the ones I do
+  /// (small outlined pill at the right of the author, like on X).
+  Widget _authorButton(AppPalette p) {
+    final who = _author;
+    if (who == null || _post.userId == Api.uid) return const SizedBox.shrink();
+    final following = who.followedByMe;
+    final pending = who.requestedByMe;
+    final label = following ? 'Message' : (pending ? 'Pending' : 'Follow');
+    final filled = !following && !pending;
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: following
+          ? () => Navigator.of(context)
+              .push(appRoute(ChatScreen(partner: who)))
+          : _toggleFollow,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: filled ? p.text : null,
+          borderRadius: BorderRadius.circular(16),
+          border: filled ? null : Border.all(color: p.border),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: filled ? p.background : p.subtext,
+            fontSize: 14,
+            fontWeight: filled ? FontWeight.w700 : FontWeight.w600,
+            decoration: TextDecoration.none,
+          ),
+        ),
+      ),
+    );
   }
 
   /// Notes + requests, for the "Community Notes" row under the post.
@@ -233,12 +313,21 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
               ),
             ),
           ),
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () => showGrokPostSheet(context, _post),
+            child: SizedBox(
+              width: 40,
+              height: 52,
+              child: Center(child: AiGlyph(size: 22, color: p.text)),
+            ),
+          ),
           Builder(
             builder: (c) => GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTap: () => _headerMenu(rectOf(c)),
               child: SizedBox(
-                width: 52,
+                width: 48,
                 height: 52,
                 child: Icon(CupertinoIcons.ellipsis, size: 22, color: p.text),
               ),
@@ -407,6 +496,9 @@ class _PostDetailScreenState extends State<PostDetailScreen> {
                           post: post,
                           openDetail: false,
                           style: PostCardStyle.detail,
+                          detailTrailing: _post.userId == Api.uid
+                              ? const SizedBox.shrink()
+                              : _authorButton(p),
                           onDeleted: (_) => Navigator.of(context).maybePop(),
                           onReplied: () => _load(silent: true),
                         ),

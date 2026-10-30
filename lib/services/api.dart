@@ -1,3 +1,4 @@
+import 'dart:async' show unawaited;
 import 'dart:io' show File;
 import 'dart:math' show Random, exp, log, pow;
 
@@ -6,6 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../core/config.dart';
 import '../models/models.dart';
+import 'ai_service.dart';
 import 'image_picker_service.dart';
 import 'moderation.dart';
 import 'snooze_topics.dart';
@@ -182,6 +184,19 @@ class Api {
     final row =
         await _db.from('profile_stats').select().eq('id', id).single();
     return Profile.fromMap(row);
+  }
+
+  /// Id of the account with this @username (case-insensitive), or null.
+  static Future<String?> profileIdByUsername(String username) async {
+    final name = username.replaceAll('@', '').trim();
+    if (name.isEmpty) return null;
+    final row = await _db
+        .from('profiles')
+        .select('id')
+        .ilike('username', name.replaceAll('_', r'\_'))
+        .limit(1)
+        .maybeSingle();
+    return row == null ? null : row['id'] as String;
   }
 
   static Future<void> updateProfile({
@@ -928,6 +943,11 @@ class Api {
         await _db.from('posts').delete().eq('id', id);
         rethrow;
       }
+    }
+    // "@grok ...": the server writes Grok's answer as a reply (not for
+    // scheduled posts, which are published later).
+    if (scheduledAt == null && AiAssist.mentionsGrok(content)) {
+      unawaited(AiAssist.answerMention(id));
     }
     return id;
   }

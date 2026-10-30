@@ -8,6 +8,7 @@ import '../core/app_palette.dart';
 import '../core/ui_helpers.dart';
 import '../models/models.dart';
 import '../services/account_sessions.dart';
+import '../services/ai_service.dart';
 import '../services/api.dart';
 import '../services/moderation.dart';
 import '../services/session_tracker.dart';
@@ -80,6 +81,8 @@ class _HomeShellState extends State<HomeShell> {
       (_) => _checkNotifications(),
     );
     Api.profileVersion.addListener(_loadMe);
+    AiAssist.grokReplied.addListener(_grokReplied);
+    AiAssist.grokError.addListener(_grokError);
     final q = widget.initialSearch;
     if (q != null && q.trim().isNotEmpty) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -94,7 +97,20 @@ class _HomeShellState extends State<HomeShell> {
   void dispose() {
     _notifTimer?.cancel();
     Api.profileVersion.removeListener(_loadMe);
+    AiAssist.grokReplied.removeListener(_grokReplied);
+    AiAssist.grokError.removeListener(_grokError);
     super.dispose();
+  }
+
+  void _grokReplied() {
+    if (mounted) showInfo(context, 'Grok replied to your post.');
+  }
+
+  void _grokError() {
+    final msg = AiAssist.grokError.value;
+    if (msg == null || !mounted) return;
+    AiAssist.grokError.value = null;
+    showInfo(context, 'Grok could not answer: $msg');
   }
 
   Future<void> _loadMe() async {

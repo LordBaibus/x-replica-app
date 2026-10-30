@@ -293,3 +293,27 @@ Re-run `supabase/schema.sql` (sections 17-19) for these.
 * **Long-press a chat:** a preview of the latest messages plus *Mark as unread*, *Pin*, *Mute*, *Archive* and *Delete conversation* (*Leave group* for groups). They are saved per account in `chat_prefs`. Delete only hides the messages for you. Mute greys the unread badge; the app has no push notifications, so that is all mute can do here.
 * **Support (Settings and privacy):** *Contact us*, *Report a problem* and *ID verification* write to `support_tickets`; the team changes `status` and writes `reply` in the Supabase dashboard and the person sees it in the app. ID verification never asks for an ID number or photo. *Download an archive of your data* calls `export_my_data()` and copies everything as JSON. *Privacy center* and *Privacy policy* are in-app pages.
 * **Still only stored, no effect:** e-mail / SMS notification switches, ad personalisation, calls, passkey and similar rows save their value (and sync with the account) but there is no e-mail service, ad system, calling or passkey backend in this project.
+
+## @mentions, @grok and the photo / post pages (latest round)
+
+- **Clickable @mentions and #hashtags.** In posts, replies, quote cards and
+  bios, `@name` is a blue link that opens that profile (a message says so if
+  the account does not exist) and `#tag` opens search (`lib/widgets/linked_text.dart`).
+- **@grok.** The seed-independent account `@grok` (gold badge, "Automated",
+  password-less, DMs off) is created by section 20 of `supabase/schema.sql`.
+  When a post or reply mentions `@grok`, the app calls the Edge Function
+  `ai-assist` (action `mention`). The function checks who is calling, reads the
+  post and its thread through the database function `grok_mention_context`,
+  asks the AI and writes the answer as a reply from `@grok` through
+  `grok_post_reply`. Both database functions can only be called by the
+  function's service role, so an app user can never make Grok say something.
+  Limits: only the author's own post, at most 15 minutes old, one answer per
+  post, 10 answers per hour per user, 280 characters (starts with `@asker`, so
+  the asker gets a mention notification). Scheduled posts are not answered.
+  **To enable it:** run `supabase/update_grok.sql` (or the whole `schema.sql`)
+  in the SQL editor and run `supabase functions deploy ai-assist` again.
+- **Photo viewer** now looks like X: full-screen picture, back arrow and "..."
+  on top, "From <author>" label, reply / repost / like pills with bookmark and
+  share, and the "Post your reply" bar; tap the picture to hide the controls.
+- **Post page**: Grok icon and "..." moved to the header; the author row has a
+  Follow button (or Message when you already follow the person).

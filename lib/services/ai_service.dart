@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'image_picker_service.dart';
@@ -38,6 +39,32 @@ class AiAssist {
       }
       final extra = d is String && d.trim().isNotEmpty ? ' ${d.trim()}' : '';
       throw Exception('The AI helper failed (error ${e.status}).$extra');
+    }
+  }
+
+  /// `@grok` in a post (not part of an e-mail address or a longer name).
+  static final RegExp _grokMention = RegExp(
+    r'(^|[^A-Za-z0-9_])@grok(?![A-Za-z0-9_])',
+    caseSensitive: false,
+  );
+  static bool mentionsGrok(String text) => _grokMention.hasMatch(text);
+
+  /// Counts up whenever @grok has just answered a post of mine (open post
+  /// pages reload their replies).
+  static final ValueNotifier<int> grokReplied = ValueNotifier<int>(0);
+
+  /// Why @grok could not answer my last mention (null = nothing wrong).
+  static final ValueNotifier<String?> grokError = ValueNotifier<String?>(null);
+
+  /// Asks the server to answer the post [postId] (which mentions @grok) as a
+  /// reply from the @grok account. The server checks everything itself; this
+  /// never throws, it reports through [grokReplied] / [grokError].
+  static Future<void> answerMention(String postId) async {
+    try {
+      await _call({'action': 'mention', 'post_id': postId});
+      grokReplied.value++;
+    } catch (e) {
+      grokError.value = '$e'.replaceFirst('Exception: ', '');
     }
   }
 

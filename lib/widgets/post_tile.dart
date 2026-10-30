@@ -32,6 +32,7 @@ class PostTile extends StatefulWidget {
     this.showDivider = true,
     this.style = PostCardStyle.feed,
     this.onReplied,
+    this.detailTrailing,
   });
 
   final Post post;
@@ -52,6 +53,9 @@ class PostTile extends StatefulWidget {
 
   /// Layout of the card (timeline, reply under a post, or the post itself).
   final PostCardStyle style;
+
+  /// Detail layout: widget at the right of the author row (see PostCard).
+  final Widget? detailTrailing;
 
   /// Called after a reply to this post was sent.
   final VoidCallback? onReplied;
@@ -246,13 +250,18 @@ class _PostTileState extends State<PostTile> {
     }
   }
 
-  void _openImage(int index) {
-    Navigator.of(context).push(
+  Future<void> _openImage(int index) async {
+    await Navigator.of(context).push(
       appRoute(
         ImageViewerScreen(urls: _post.images, initial: index, post: _post),
         fullscreen: true,
       ),
     );
+    // Likes, reposts, bookmarks ... may have changed in the viewer.
+    try {
+      final fresh = await Api.fetchPost(_post.id);
+      if (mounted && fresh != null) _set(fresh);
+    } catch (_) {}
   }
 
   Future<void> _openVideo() async {
@@ -395,6 +404,7 @@ class _PostTileState extends State<PostTile> {
       onShare: _share,
       onMore: _more,
       onGrok: _grok,
+      detailTrailing: widget.detailTrailing,
       onOpen: widget.openDetail ? _open : null,
       onOpenAuthor: _openAuthor,
       onOpenQuote: _openQuote,
