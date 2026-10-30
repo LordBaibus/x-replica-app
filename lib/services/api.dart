@@ -8,6 +8,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config.dart';
 import '../models/models.dart';
 import 'ai_service.dart';
+import 'chat_media.dart';
 import 'image_picker_service.dart';
 import 'moderation.dart';
 import 'snooze_topics.dart';
@@ -1221,6 +1222,102 @@ class Api {
       if (e.code == '42501') {
         throw Exception('You can’t send messages to this account.');
       }
+      rethrow;
+    }
+  }
+
+  // ---- chat media (photos, videos, voice messages) ----------------------
+
+  /// Uploads [draft] to the private `chat-media` bucket and returns its path
+  /// (`<my id>/<name>`), which is what the message stores.
+  static Future<String> uploadChatMedia(ChatDraft draft) async {
+    final path = '$uid/${DateTime.now().millisecondsSinceEpoch}_'
+        '${Random().nextInt(1 << 30)}.${draft.extension}';
+    final bucket = _db.storage.from(AppConfig.chatMediaBucket);
+    final options = FileOptions(contentType: draft.contentType);
+    if (draft.bytes != null) {
+      await bucket.uploadBinary(path, draft.bytes!, fileOptions: options);
+    } else {
+      await bucket.upload(path, File(draft.path!), fileOptions: options);
+    }
+    return path;
+  }
+
+  static final Map<String, ({String url, DateTime at})> _chatUrls = {};
+
+  /// A link (valid for an hour) to open a chat file. Cached, so scrolling a
+  /// chat does not ask for the same link again and again.
+  static Future<String> chatMediaUrl(String path) async {
+    final hit = _chatUrls[path];
+    if (hit != null &&
+        DateTime.now().difference(hit.at) < const Duration(minutes: 45)) {
+      return hit.url;
+    }
+    final url = await _db.storage
+        .from(AppConfig.chatMediaBucket)
+        .createSignedUrl(path, 3600);
+    _chatUrls[path] = (url: url, at: DateTime.now());
+    return url;
+  }
+
+  /// Sends a photo / video / voice message to [partnerId].
+  static Future<Message> sendMediaMessage(
+    String partnerId,
+    ChatDraft draft, {
+    String? replyTo,
+  }) async {
+    final path = await uploadChatMedia(draft);
+    try {
+      final row = await _db
+          .from('messages')
+          .insert({
+            'sender_id': uid,
+            'receiver_id': partnerId,
+            'content': draft.kind.label,
+            'media_path': path,
+            'media_kind': draft.kind.value,
+            if (draft.durationMs != null) 'media_ms': draft.durationMs,
+            'reply_to': ?replyTo,
+          })
+          .select()
+          .single();
+      return Message.fromMap(row);
+    } on PostgrestException catch (e) {
+      // Do not leave the file behind when the message was refused.
+      try {
+        await _db.storage.from(AppConfig.chatMediaBucket).remove([path]);
+      } catch (_) {}
+      if (e.code == '42501') {
+        throw Exception('You can’t send messages to this account.');
+      }
+      rethrow;
+    }
+  }
+
+  /// Sends a photo / video / voice message to the group [groupId].
+  static Future<GroupMessage> sendGroupMediaMessage(
+    String groupId,
+    ChatDraft draft,
+  ) async {
+    final path = await uploadChatMedia(draft);
+    try {
+      final row = await _db
+          .from('group_messages')
+          .insert({
+            'group_id': groupId,
+            'sender_id': uid,
+            'content': draft.kind.label,
+            'media_path': path,
+            'media_kind': draft.kind.value,
+            if (draft.durationMs != null) 'media_ms': draft.durationMs,
+          })
+          .select()
+          .single();
+      return GroupMessage.fromMap(row);
+    } catch (_) {
+      try {
+        await _db.storage.from(AppConfig.chatMediaBucket).remove([path]);
+      } catch (_) {}
       rethrow;
     }
   }

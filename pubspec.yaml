@@ -38,6 +38,9 @@ dependencies:
   geolocator: ^14.0.2
   geocoding: ^4.0.0
 
+  # Voice messages in chats (recording; playback uses video_player)
+  record: ^6.1.2
+
   # Grok voice: dictation (speech to text) and spoken answers
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.3

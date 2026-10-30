@@ -317,3 +317,20 @@ Re-run `supabase/schema.sql` (sections 17-19) for these.
   share, and the "Post your reply" bar; tap the picture to hide the controls.
 - **Post page**: Grok icon and "..." moved to the header; the author row has a
   Follow button (or Message when you already follow the person).
+
+## Photos, videos and voice messages in chats (final feature)
+
+- Both 1-to-1 chats and group chats: the **photo button** next to the field
+  (gallery photo or video, take a photo, record a video) and the **microphone**
+  (shown while the field is empty): tap it to record, tap send to send, bin to
+  throw away (up to 5 minutes). Photos open full screen, videos in a player,
+  voice messages play inside the bubble (one at a time).
+- Files go to the **private** storage bucket `chat-media` (50 MB limit) and are
+  opened with signed links that expire after an hour. A file can only be read
+  by people who can read the message that points to it, and a message can only
+  point to a file in its sender's own folder (checked by the database).
+- The message text saved is a label ("📷 Photo", "🎥 Video", "🎤 Voice
+  message"), so the inbox list, previews and replies need no extra code.
+- **To enable it:** run `supabase/update_chat_media.sql` (or the whole
+  `schema.sql`), then `flutter pub get` (new package `record`). The microphone
+  and camera permissions were already in the Android manifest / iOS Info.plist.

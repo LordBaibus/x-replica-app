@@ -36,6 +36,9 @@ class AppConfig {
   static const String postImagesBucket = 'post-images';
   static const String postVideosBucket = 'post-videos';
 
+  /// Private bucket for photos, videos and voice messages sent in chats.
+  static const String chatMediaBucket = 'chat-media';
+
   /// Video limits of a post (X allows 2 min 20 s for normal accounts; the
   /// size matches the free Supabase Storage limit of 50 MB per file).
   static const int maxVideoSeconds = 140;

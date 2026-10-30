@@ -505,10 +505,20 @@ class Message {
     required this.createdAt,
     this.readAt,
     this.replyTo,
+    this.mediaPath,
+    this.mediaKind,
+    this.mediaMs,
   });
 
   /// Message this one answers (null = a normal message).
   final String? replyTo;
+
+  /// Photo / video / voice message: the file in the private `chat-media`
+  /// bucket, its kind (`image`, `video`, `voice`) and length in ms.
+  final String? mediaPath;
+  final String? mediaKind;
+  final int? mediaMs;
+  bool get hasMedia => mediaPath != null && mediaKind != null;
 
   final String id;
   final String senderId;
@@ -525,6 +535,9 @@ class Message {
         createdAt: _date(m['created_at']),
         readAt: m['read_at'] == null ? null : _date(m['read_at']),
         replyTo: m['reply_to'] as String?,
+        mediaPath: m['media_path'] as String?,
+        mediaKind: m['media_kind'] as String?,
+        mediaMs: (m['media_ms'] as num?)?.toInt(),
       );
 }
 
@@ -702,6 +715,9 @@ class GroupMessage {
     required this.senderId,
     required this.content,
     required this.createdAt,
+    this.mediaPath,
+    this.mediaKind,
+    this.mediaMs,
   });
 
   final String id;
@@ -709,6 +725,10 @@ class GroupMessage {
   final String senderId;
   final String content;
   final DateTime createdAt;
+  final String? mediaPath;
+  final String? mediaKind;
+  final int? mediaMs;
+  bool get hasMedia => mediaPath != null && mediaKind != null;
 
   factory GroupMessage.fromMap(Map<String, dynamic> m) => GroupMessage(
         id: m['id'] as String,
@@ -716,6 +736,9 @@ class GroupMessage {
         senderId: m['sender_id'] as String,
         content: (m['content'] as String?) ?? '',
         createdAt: _date(m['created_at']),
+        mediaPath: m['media_path'] as String?,
+        mediaKind: m['media_kind'] as String?,
+        mediaMs: (m['media_ms'] as num?)?.toInt(),
       );
 }
 

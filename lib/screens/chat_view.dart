@@ -9,9 +9,11 @@ import '../core/format.dart';
 import '../core/ui_helpers.dart';
 import '../models/models.dart';
 import '../services/api.dart';
+import '../services/chat_media.dart';
 import '../widgets/anchored_popup.dart';
 import '../widgets/avatar.dart';
 import '../widgets/badges.dart';
+import '../widgets/chat_media_widgets.dart';
 import '../widgets/shared_post_card.dart';
 import '../widgets/state_views.dart';
 import 'profile_view.dart';
@@ -320,6 +322,32 @@ class _ChatViewState extends State<ChatView> {
     }
   }
 
+  /// Photo, video or voice message.
+  Future<void> _sendMedia(ChatDraft draft) async {
+    if (_sending) return;
+    setState(() => _sending = true);
+    try {
+      final sent = await Api.sendMediaMessage(
+        widget.partner.id,
+        draft,
+        replyTo: _replyingTo?.id,
+      );
+      if (!mounted) return;
+      setState(() {
+        _replyingTo = null;
+        if (!_messages.any((m) => m.id == sent.id)) {
+          _messages = [..._messages, sent];
+        }
+        _sending = false;
+      });
+      widget.onActivity?.call();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _sending = false);
+      showError(context, e);
+    }
+  }
+
   void _openProfile() => Navigator.of(context)
       .push(appRoute(ProfileScreen(userId: widget.partner.id)));
 
@@ -553,7 +581,15 @@ class _ChatViewState extends State<ChatView> {
               ],
             ),
           );
-    final Widget content = postId == null
+    final Widget content = m.hasMedia
+        ? ChatMediaView(
+            path: m.mediaPath!,
+            kind: m.mediaKind!,
+            mine: mine,
+            maxWidth: maxWidth,
+            durationMs: m.mediaMs,
+          )
+        : postId == null
         ? textBubble!
         : Column(
             crossAxisAlignment:
@@ -749,53 +785,12 @@ class _ChatViewState extends State<ChatView> {
                 ],
               ),
             ),
-          Padding(
-        padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            Expanded(
-              child: CupertinoTextField(
-                controller: _input,
-                placeholder: 'Start a message',
-                minLines: 1,
-                maxLines: 5,
-                textCapitalization: TextCapitalization.sentences,
-                cursorColor: p.accent,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                decoration: BoxDecoration(
-                  color: p.field,
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                style: TextStyle(color: p.text, fontSize: 16),
-                placeholderStyle: TextStyle(color: p.subtext, fontSize: 16),
-              ),
-            ),
-            const SizedBox(width: 8),
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: _sending ? null : _send,
-              child: Opacity(
-                opacity: _sending ? 0.5 : 1,
-                child: Container(
-                  width: 40,
-                  height: 40,
-                  alignment: Alignment.center,
-                  decoration: BoxDecoration(
-                    color: p.accent,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    AppIcons.send,
-                    size: 20,
-                    color: const Color(0xFFFFFFFF),
-                  ),
-                ),
-              ),
-            ),
-          ],
-        ),
+          ChatComposerBar(
+            controller: _input,
+            placeholder: 'Start a message',
+            sending: _sending,
+            onSendText: _send,
+            onSendMedia: _sendMedia,
           ),
         ],
       ),
