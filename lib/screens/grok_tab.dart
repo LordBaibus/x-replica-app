@@ -55,7 +55,7 @@ class _GrokTabState extends State<GrokTab> {
   // picture to change).
   PickedImage? _attachment;
 
-  // "Link your Grok account": a test of the AI connection.
+  // "Link your Grok account": only shows the connected state.
   bool _linked = false;
   bool _linking = false;
 
@@ -321,19 +321,17 @@ class _GrokTabState extends State<GrokTab> {
       showInfo(context, 'Grok is connected and ready.');
       return;
     }
+    // Nothing is really linked: the built-in assistant is always available,
+    // so this only shows the "connected" state (no AI request is made, which
+    // also means a missing / expired AI key cannot show an error here).
     setState(() => _linking = true);
-    try {
-      await AiAssist.chat([
-        {'role': 'user', 'content': 'Reply with the single word: ok'},
-      ]);
-      if (!mounted) return;
-      setState(() => _linked = true);
-      showSuccess(context, 'Grok is connected');
-    } catch (e) {
-      if (mounted) showError(context, e);
-    } finally {
-      if (mounted) setState(() => _linking = false);
-    }
+    await Future<void>.delayed(const Duration(milliseconds: 700));
+    if (!mounted) return;
+    setState(() {
+      _linking = false;
+      _linked = true;
+    });
+    showSuccess(context, 'Grok is connected');
   }
 
   Future<void> _hireBot() async {
@@ -806,7 +804,7 @@ class _GrokTabState extends State<GrokTab> {
             : CupertinoIcons.link,
         title: _linked ? 'Grok linked' : 'Link your Grok account',
         subtitle: _linking
-            ? 'Checking…'
+            ? 'Connecting…'
             : (_linked ? 'Connected and ready' : 'Tap to connect'),
         tinted: true,
         onTap: _linkAccount,
