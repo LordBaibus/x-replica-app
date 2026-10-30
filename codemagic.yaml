@@ -1,0 +1,320 @@
+# Codemagic CI (https://codemagic.io) for x_replica
+# ─────────────────────────────────────────────────────────────────────────────
+# Workflows (pick one when you press "Start new build"):
+#
+#   ios-unsigned-ipa      iOS .ipa WITHOUT code signing  ← for a FREE Apple ID
+#   android-apk           installable .apk (debug-signed, works out of the box)
+#   android-signed-apk    installable .apk signed with YOUR keystore, so new
+#                         builds update the installed app instead of failing
+#
+# Nothing is required to run the first two. The Supabase URL and publishable
+# key are already built into lib/core/config.dart. If you want to override
+# them (or add a GIPHY key for the GIF search), see "Optional variables" below.
+#
+# Before the app can show anything, run supabase/schema.sql and then
+# supabase/seed.sql once in the Supabase SQL editor (see README.md).
+#
+# ── iOS with a FREE Apple developer account ─────────────────────────────────
+# Codemagic can only sign iOS apps with certificates from the PAID Apple
+# Developer Program. A free account can't create distribution certificates or
+# App Store Connect API keys, so this workflow builds with --no-codesign and
+# ships an UNSIGNED .ipa. You sign it yourself, on your own computer:
+#
+#   1. Download "x_replica-unsigned.ipa" from the build's Artifacts.
+#   2. Open Sideloadly (Windows/macOS) or AltStore, plug in the iPhone, sign in
+#      with your free Apple ID and install the .ipa.
+#   3. On the iPhone: Settings > General > VPN & Device Management > trust your
+#      Apple ID. On iOS 16+ also turn on Settings > Privacy & Security >
+#      Developer Mode (restarts the phone).
+#
+# Free-account limits (Apple's, not Codemagic's):
+#   • the installed app EXPIRES AFTER 7 DAYS - re-install or refresh it
+#     (AltStore can refresh it automatically while on the same Wi-Fi)
+#   • at most 3 sideloaded apps at the same time, 10 App IDs per week
+#   • no TestFlight, no App Store, no push notifications
+#   • Sideloadly/AltStore replaces the bundle id (com.example.xReplica) with
+#     one that belongs to your Apple ID - that is expected
+#
+# If you ever join the paid program, see the commented "ios-signed-ipa"
+# template at the very bottom.
+#
+# ── Android ─────────────────────────────────────────────────────────────────
+# Copy the .apk to the phone and open it (allow "install unknown apps").
+# "android-apk" signs with a debug key that Codemagic creates fresh on every
+# build, so a NEW build cannot be installed over an OLD one (Android says "App
+# not installed"): uninstall the old app first. To get updates, use
+# "android-signed-apk":
+#   1. Create a keystore once (any PC with Java):
+#        keytool -genkeypair -v -keystore x_replica.jks -alias x_replica \
+#          -keyalg RSA -keysize 2048 -validity 10000
+#   2. Codemagic > Teams > Personal account (or your team) > Code signing
+#      identities > Android keystores > upload x_replica.jks, give it the
+#      reference name  x_replica_keystore  and fill in the passwords/alias.
+#      KEEP the .jks file and passwords - losing them means losing updates.
+#
+# ── Optional variables ──────────────────────────────────────────────────────
+# To override Supabase / add GIPHY, create an environment variable group in
+# Codemagic (App > Environment variables) named  app_config  with any of:
+#   SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, GIPHY_API_KEY
+# mark them "Secure", then uncomment the `groups:` lines in the workflows.
+# The scripts pass whatever of them is set as --dart-define; anything missing
+# falls back to the defaults in lib/core/config.dart.
+#
+# ── Notifications ───────────────────────────────────────────────────────────
+# To get an e-mail with the download links, uncomment the `publishing:` block
+# of a workflow and put your own address in it.
+# ─────────────────────────────────────────────────────────────────────────────
+
+definitions:
+  # Re-used by every workflow.
+  triggers: &push_to_main
+    events:
+      - push
+    branch_patterns:
+      - pattern: main
+        include: true
+        source: true
+
+  scripts:
+    - &get_packages
+      name: Get Flutter packages
+      script: |
+        flutter --version
+        flutter pub get
+
+    - &analyze
+      name: Static analysis (does not block the build)
+      script: flutter analyze --no-fatal-infos --no-fatal-warnings
+      ignore_failure: true
+
+    - &run_tests
+      name: Unit & widget tests (does not block the build)
+      script: flutter test
+      ignore_failure: true
+
+    # Builds the --dart-define flags from the optional variables above.
+    - &dart_defines
+      name: Collect optional --dart-define values
+      script: |
+        DEFINES=""
+        for NAME in SUPABASE_URL SUPABASE_PUBLISHABLE_KEY GIPHY_API_KEY; do
+          VALUE="$(printenv "$NAME" || true)"
+          if [ -n "$VALUE" ]; then
+            DEFINES="$DEFINES --dart-define=$NAME=$VALUE"
+            echo "Using $NAME from the environment"
+          fi
+        done
+        echo "DART_DEFINES=$DEFINES" >> "$CM_ENV"
+
+workflows:
+  # ──────────────────────────────────────────────────────────────────────────
+  # iOS - unsigned .ipa for Sideloadly / AltStore (FREE Apple ID)
+  # ──────────────────────────────────────────────────────────────────────────
+  ios-unsigned-ipa:
+    name: iOS - unsigned IPA (free Apple ID)
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      flutter: stable
+      xcode: latest
+      cocoapods: default
+      # groups:
+      #   - app_config
+    cache:
+      cache_paths:
+        - $HOME/Library/Caches/CocoaPods
+        - $FLUTTER_ROOT/.pub-cache
+    triggering: *push_to_main
+    scripts:
+      - *get_packages
+      - *analyze
+      - *run_tests
+      - *dart_defines
+
+      - name: Generate the iOS project files (Podfile, Generated.xcconfig)
+        script: flutter build ios --config-only --release --no-codesign
+
+      - name: Set the iOS deployment target to 15.0 and install pods
+        # adaptive_platform_ui needs iOS 15+. The Xcode project already says
+        # 15.0; this makes the generated Podfile agree with it.
+        script: |
+          set -e
+          cd ios
+          if grep -Eq "^#? ?platform :ios" Podfile; then
+            sed -i '' -E "s/^#? ?platform :ios, .*/platform :ios, '15.0'/" Podfile
+          else
+            sed -i '' "1i\\
+          platform :ios, '15.0'
+          " Podfile
+          fi
+          grep -n "platform :ios" Podfile
+          pod install --repo-update
+
+      - name: Build iOS release WITHOUT code signing
+        script: |
+          flutter build ios --release --no-codesign \
+            --build-name=1.0.0 --build-number=$BUILD_NUMBER \
+            $DART_DEFINES
+
+      - name: Package the unsigned .ipa
+        script: |
+          set -e
+          APP="build/ios/iphoneos/Runner.app"
+          if [ ! -d "$APP" ]; then
+            echo "Runner.app was not produced at $APP" >&2
+            ls -R build/ios | head -50
+            exit 1
+          fi
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" "$APP/Info.plist"
+          /usr/libexec/PlistBuddy -c "Print :MinimumOSVersion" "$APP/Info.plist"
+          rm -rf build/ios/ipa
+          mkdir -p build/ios/ipa/Payload
+          cp -R "$APP" build/ios/ipa/Payload/Runner.app
+          cd build/ios/ipa
+          # -y keeps symlinks, -r recurses, -q quiet
+          zip -qry x_replica-unsigned.ipa Payload
+          rm -rf Payload
+          ls -lh x_replica-unsigned.ipa
+          echo "Next: open this .ipa with Sideloadly or AltStore (see top of codemagic.yaml)."
+    artifacts:
+      - build/ios/ipa/*.ipa
+      - /tmp/xcodebuild_logs/*.log
+    # publishing:
+    #   email:
+    #     recipients:
+    #       - your-address@example.com
+    #     notify:
+    #       success: true
+    #       failure: true
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Android - installable .apk (debug-signed, no setup needed)
+  # ──────────────────────────────────────────────────────────────────────────
+  android-apk:
+    name: Android - installable APK (debug key)
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      java: 17
+      # groups:
+      #   - app_config
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $FLUTTER_ROOT/.pub-cache
+    triggering: *push_to_main
+    scripts:
+      - *get_packages
+      - *analyze
+      - *run_tests
+      - *dart_defines
+
+      - name: Build release APK
+        # No android/key.properties here, so build.gradle.kts signs with the
+        # debug key. Fine for installing on a phone; see the note at the top
+        # about uninstalling before installing a newer build.
+        script: |
+          flutter build apk --release \
+            --build-name=1.0.0 --build-number=$BUILD_NUMBER \
+            $DART_DEFINES
+
+      - name: Rename APK
+        script: |
+          set -e
+          cd build/app/outputs/flutter-apk
+          cp app-release.apk x_replica.apk
+          ls -lh *.apk
+    artifacts:
+      - build/app/outputs/flutter-apk/x_replica.apk
+    # publishing:
+    #   email:
+    #     recipients:
+    #       - your-address@example.com
+
+  # ──────────────────────────────────────────────────────────────────────────
+  # Android - .apk signed with YOUR keystore (updates install over old builds)
+  # Needs the keystore from the note at the top. Started by hand only.
+  # ──────────────────────────────────────────────────────────────────────────
+  android-signed-apk:
+    name: Android - signed APK (your keystore)
+    instance_type: linux_x2
+    max_build_duration: 30
+    environment:
+      flutter: stable
+      java: 17
+      android_signing:
+        - x_replica_keystore
+      # groups:
+      #   - app_config
+    cache:
+      cache_paths:
+        - $HOME/.gradle/caches
+        - $FLUTTER_ROOT/.pub-cache
+    scripts:
+      - *get_packages
+      - *analyze
+      - *run_tests
+      - *dart_defines
+
+      - name: Write android/key.properties from the Codemagic keystore
+        script: |
+          set -e
+          cat > android/key.properties <<EOF
+          storePassword=$CM_KEYSTORE_PASSWORD
+          keyPassword=$CM_KEY_PASSWORD
+          keyAlias=$CM_KEY_ALIAS
+          storeFile=$CM_KEYSTORE_PATH
+          EOF
+          echo "key.properties written for alias $CM_KEY_ALIAS"
+
+      - name: Build signed release APK
+        script: |
+          flutter build apk --release \
+            --build-name=1.0.0 --build-number=$BUILD_NUMBER \
+            $DART_DEFINES
+
+      - name: Rename APK
+        script: |
+          set -e
+          cd build/app/outputs/flutter-apk
+          cp app-release.apk x_replica.apk
+          ls -lh *.apk
+    artifacts:
+      - build/app/outputs/flutter-apk/x_replica.apk
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ONLY WITH THE PAID APPLE DEVELOPER PROGRAM ($99/year) - not usable with a
+# free Apple ID. Create an App Store Connect API key in Codemagic (Teams >
+# Integrations > Apple Developer Portal), change the bundle id in Xcode to your
+# own, then uncomment. It signs automatically and uploads to TestFlight.
+#
+#   ios-signed-ipa:
+#     name: iOS - signed IPA + TestFlight
+#     instance_type: mac_mini_m2
+#     max_build_duration: 60
+#     integrations:
+#       app_store_connect: <your integration name>
+#     environment:
+#       flutter: stable
+#       xcode: latest
+#       cocoapods: default
+#       ios_signing:
+#         distribution_type: app_store
+#         bundle_identifier: com.yourname.xreplica
+#     scripts:
+#       - *get_packages
+#       - name: Apply the signing profile to the Xcode project
+#         script: xcode-project use-profiles
+#       - name: Build the signed .ipa
+#         script: |
+#           flutter build ipa --release \
+#             --build-name=1.0.0 --build-number=$BUILD_NUMBER \
+#             --export-options-plist=/Users/builder/export_options.plist
+#     artifacts:
+#       - build/ios/ipa/*.ipa
+#     publishing:
+#       app_store_connect:
+#         auth: integration
+#         submit_to_testflight: true
+# ─────────────────────────────────────────────────────────────────────────────

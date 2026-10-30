@@ -1,0 +1,51 @@
+name: x_replica
+description: "X Replica - an educational replica of the X social app built with Flutter, adaptive_platform_ui and Supabase."
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_localizations:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # Native iOS (Cupertino / iOS 26 Liquid Glass) + Material on Android
+  adaptive_platform_ui: ^1.0.2
+
+  # Backend: auth, database, storage, realtime
+  supabase_flutter: ^2.18.3
+
+  image_picker: ^1.1.2
+
+  # Video posts: player in the feed and the full-screen viewer
+  video_player: ^2.9.2
+  cached_network_image: ^3.4.1
+  timeago: ^3.7.0
+  shared_preferences: ^2.3.2
+  crypto: ^3.0.3
+  flutter_cache_manager: ^3.4.1
+
+  # GIF search (GIPHY REST API)
+  http: ^1.2.2
+
+  # "Tag location": GPS position + place names (no API key needed)
+  geolocator: ^14.0.2
+  geocoding: ^4.0.0
+
+  # Grok voice: dictation (speech to text) and spoken answers
+  speech_to_text: ^7.0.0
+  flutter_tts: ^4.2.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
