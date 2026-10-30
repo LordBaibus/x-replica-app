@@ -3,22 +3,25 @@ import 'dart:async';
 import 'package:flutter/cupertino.dart';
 
 import '../core/app_palette.dart';
-import '../core/ui_helpers.dart';
 import '../models/models.dart';
 import '../services/api.dart';
 import 'avatar.dart';
 import 'state_views.dart';
 
+/// What "New chat" can resolve to besides a person.
+enum NewChatChoice { group }
+
 /// The "New chat" card: search box, "Create group" and a list of people.
-/// Resolves to the person that was tapped (or null when cancelled).
-Future<Profile?> showNewChatDialog(BuildContext context) {
-  return showGeneralDialog<Profile>(
+/// Resolves to the [Profile] that was tapped, [NewChatChoice.group] when
+/// "Create group" was tapped, or null when cancelled.
+Future<Object?> showNewChatDialog(BuildContext context) {
+  return showGeneralDialog<Object>(
     context: context,
     barrierDismissible: true,
     barrierLabel: 'Close',
     barrierColor: const Color(0x66000000),
     transitionDuration: const Duration(milliseconds: 150),
-    pageBuilder: (ctx, _, __) => const _NewChatCard(),
+    pageBuilder: (ctx, _, _) => const _NewChatCard(),
   );
 }
 
@@ -75,12 +78,7 @@ class _NewChatCardState extends State<_NewChatCard> {
   Widget _createGroup(AppPalette p) {
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTap: () => notify(
-        context,
-        title: 'Group chats',
-        message: 'Group chats are not available in this version yet. '
-            'Direct messages work as usual.',
-      ),
+      onTap: () => Navigator.of(context).pop(NewChatChoice.group),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Row(

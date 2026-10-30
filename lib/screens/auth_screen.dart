@@ -20,6 +20,7 @@ import '../widgets/avatar.dart';
 import '../widgets/brand_mark.dart';
 import '../widgets/pill_button.dart';
 import '../widgets/responsive.dart';
+import '../widgets/state_views.dart';
 import 'otp_screen.dart';
 
 /// Which step of the signed-out flow is showing.
@@ -623,7 +624,7 @@ class _AuthScreenState extends State<AuthScreen> {
     return Column(
       children: [
         Expanded(
-          child: Center(
+          child: ScrollSafeCenter(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [

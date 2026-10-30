@@ -13,6 +13,33 @@ class LoadingView extends StatelessWidget {
       const Center(child: CupertinoActivityIndicator(radius: 14));
 }
 
+/// Centres [child] when there is room and lets it scroll when there is not
+/// (small phone, landscape, keyboard open), so it can never overflow.
+class ScrollSafeCenter extends StatelessWidget {
+  const ScrollSafeCenter({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, box) {
+        if (!box.hasBoundedHeight) return Center(child: child);
+        return SingleChildScrollView(
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: box.maxHeight,
+              minWidth: box.maxWidth,
+            ),
+            child: Center(child: child),
+          ),
+        );
+      },
+    );
+  }
+}
+
 /// Friendly "nothing here yet" placeholder.
 class EmptyState extends StatelessWidget {
   const EmptyState({
@@ -33,7 +60,7 @@ class EmptyState extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = AppPalette.of(context);
-    return Center(
+    return ScrollSafeCenter(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(

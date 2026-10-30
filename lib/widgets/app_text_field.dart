@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../core/app_icons.dart';
 import '../core/app_palette.dart';
 
 /// Text field used across the app. Looks the same on iOS and Android: thin
@@ -21,6 +22,7 @@ class AppTextField extends StatefulWidget {
     this.autocorrect = true,
     this.autofocus = false,
     this.prefixIcon,
+    this.suffix,
     this.textAlign = TextAlign.start,
     this.style,
     this.padding,
@@ -45,6 +47,9 @@ class AppTextField extends StatefulWidget {
 
   /// Icon or small widget shown inside the box before the text.
   final Widget? prefixIcon;
+
+  /// Widget shown inside the box after the text (e.g. a show/hide eye).
+  final Widget? suffix;
   final TextAlign textAlign;
   final TextStyle? style;
   final EdgeInsetsGeometry? padding;
@@ -109,6 +114,12 @@ class _AppTextFieldState extends State<AppTextField> {
               child: widget.prefixIcon,
             )
           : null,
+      suffix: widget.suffix != null
+          ? Padding(
+              padding: const EdgeInsets.only(right: 14),
+              child: widget.suffix,
+            )
+          : null,
       padding: widget.padding ??
           EdgeInsets.symmetric(horizontal: hasPrefix ? 12 : 14, vertical: 14),
       decoration: BoxDecoration(
@@ -120,6 +131,61 @@ class _AppTextFieldState extends State<AppTextField> {
       ),
       style: widget.style ?? TextStyle(color: p.text, fontSize: 17),
       placeholderStyle: TextStyle(color: p.subtext, fontSize: 17),
+    );
+  }
+}
+
+/// Password input with a tappable eye that shows / hides the text.
+class PasswordField extends StatefulWidget {
+  const PasswordField({
+    super.key,
+    this.controller,
+    this.placeholder,
+    this.textInputAction,
+    this.autofocus = false,
+    this.onChanged,
+    this.onSubmitted,
+  });
+
+  final TextEditingController? controller;
+  final String? placeholder;
+  final TextInputAction? textInputAction;
+  final bool autofocus;
+  final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+
+  @override
+  State<PasswordField> createState() => _PasswordFieldState();
+}
+
+class _PasswordFieldState extends State<PasswordField> {
+  bool _hide = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = AppPalette.of(context);
+    return AppTextField(
+      controller: widget.controller,
+      placeholder: widget.placeholder,
+      obscureText: _hide,
+      autocorrect: false,
+      autofocus: widget.autofocus,
+      textInputAction: widget.textInputAction,
+      onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      prefixIcon: Icon(AppIcons.lock, size: 18, color: p.subtext),
+      suffix: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: () => setState(() => _hide = !_hide),
+        child: Padding(
+          padding: const EdgeInsets.only(left: 10, top: 4, bottom: 4),
+          child: Icon(
+            _hide ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
+            size: 22,
+            color: p.subtext,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -121,7 +121,11 @@ class XReplicaApp extends StatelessWidget {
         final palette = AppPalette.forBrightness(effective);
         return MediaQuery(
           data: mq.copyWith(
-            textScaler: TextScaler.linear(base * display.fontScale),
+            // Keeps very large phone fonts from pushing rows and bars past
+            // the edge of the screen (the yellow "overflowed" stripes).
+            textScaler: TextScaler.linear(
+              (base * display.fontScale).clamp(0.8, 1.3).toDouble(),
+            ),
             // Day / Night in Settings > Display: every widget below, native
             // iOS controls and Material ones too, sees that brightness.
             platformBrightness: effective,

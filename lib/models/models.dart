@@ -571,6 +571,188 @@ class Conversation {
       );
 }
 
+/// A message to the team: Contact us, Report a problem or a verification
+/// request. The team answers in the dashboard (`status`, `reply`).
+class SupportTicket {
+  const SupportTicket({
+    required this.id,
+    required this.kind,
+    required this.subject,
+    required this.message,
+    required this.status,
+    required this.reply,
+    required this.createdAt,
+  });
+
+  final String id;
+
+  /// contact | problem | verification
+  final String kind;
+  final String subject;
+  final String message;
+
+  /// open | in_review | resolved | rejected
+  final String status;
+  final String? reply;
+  final DateTime createdAt;
+
+  String get statusLabel => switch (status) {
+        'in_review' => 'In review',
+        'resolved' => 'Resolved',
+        'rejected' => 'Not approved',
+        _ => 'Sent',
+      };
+
+  bool get isWaiting => status == 'open' || status == 'in_review';
+
+  factory SupportTicket.fromMap(Map<String, dynamic> m) => SupportTicket(
+        id: m['id'] as String,
+        kind: (m['kind'] as String?) ?? 'contact',
+        subject: (m['subject'] as String?) ?? '',
+        message: (m['message'] as String?) ?? '',
+        status: (m['status'] as String?) ?? 'open',
+        reply: m['reply'] as String?,
+        createdAt: _date(m['created_at']),
+      );
+}
+
+/// My list options for one chat (pin, mute, archive, mark as unread).
+class ChatPref {
+  const ChatPref({
+    this.pinned = false,
+    this.muted = false,
+    this.archived = false,
+    this.markedUnread = false,
+    this.clearedAt,
+  });
+
+  final bool pinned;
+  final bool muted;
+  final bool archived;
+  final bool markedUnread;
+
+  /// Messages up to this moment were "deleted" by me.
+  final DateTime? clearedAt;
+
+  ChatPref copyWith({
+    bool? pinned,
+    bool? muted,
+    bool? archived,
+    bool? markedUnread,
+    DateTime? clearedAt,
+  }) =>
+      ChatPref(
+        pinned: pinned ?? this.pinned,
+        muted: muted ?? this.muted,
+        archived: archived ?? this.archived,
+        markedUnread: markedUnread ?? this.markedUnread,
+        clearedAt: clearedAt ?? this.clearedAt,
+      );
+
+  factory ChatPref.fromMap(Map<String, dynamic> m) => ChatPref(
+        pinned: (m['pinned'] as bool?) ?? false,
+        muted: (m['muted'] as bool?) ?? false,
+        archived: (m['archived'] as bool?) ?? false,
+        markedUnread: (m['marked_unread'] as bool?) ?? false,
+        clearedAt: m['cleared_at'] == null ? null : _date(m['cleared_at']),
+      );
+}
+
+/// One row of the inbox for a group chat (`my_groups()`).
+class GroupChat {
+  const GroupChat({
+    required this.id,
+    required this.name,
+    required this.memberCount,
+    required this.lastMessage,
+    required this.lastAt,
+    required this.lastFromMe,
+    required this.lastSenderName,
+    required this.unreadCount,
+  });
+
+  final String id;
+  final String name;
+  final int memberCount;
+
+  /// Empty while nobody wrote yet.
+  final String lastMessage;
+  final DateTime lastAt;
+  final bool lastFromMe;
+  final String? lastSenderName;
+  final int unreadCount;
+
+  factory GroupChat.fromMap(Map<String, dynamic> m) => GroupChat(
+        id: m['group_id'] as String,
+        name: (m['name'] as String?) ?? 'Group',
+        memberCount: _int(m['member_count']),
+        lastMessage: (m['last_message'] as String?) ?? '',
+        lastAt: _date(m['last_at']),
+        lastFromMe: (m['last_from_me'] as bool?) ?? false,
+        lastSenderName: m['last_sender_name'] as String?,
+        unreadCount: _int(m['unread_count']),
+      );
+}
+
+/// One message in a group chat.
+class GroupMessage {
+  const GroupMessage({
+    required this.id,
+    required this.groupId,
+    required this.senderId,
+    required this.content,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String groupId;
+  final String senderId;
+  final String content;
+  final DateTime createdAt;
+
+  factory GroupMessage.fromMap(Map<String, dynamic> m) => GroupMessage(
+        id: m['id'] as String,
+        groupId: m['group_id'] as String,
+        senderId: m['sender_id'] as String,
+        content: (m['content'] as String?) ?? '',
+        createdAt: _date(m['created_at']),
+      );
+}
+
+/// A person in a group chat (`group_member_list()`).
+class GroupMember {
+  const GroupMember({
+    required this.userId,
+    required this.username,
+    required this.displayName,
+    required this.avatarUrl,
+    required this.isAdmin,
+  });
+
+  final String userId;
+  final String username;
+  final String displayName;
+  final String? avatarUrl;
+  final bool isAdmin;
+
+  String get name => displayName.trim().isEmpty ? username : displayName;
+
+  Profile get profile => Profile(
+        id: userId,
+        username: username,
+        displayName: displayName,
+        avatarUrl: avatarUrl,
+      );
+
+  factory GroupMember.fromMap(Map<String, dynamic> m) => GroupMember(
+        userId: m['user_id'] as String,
+        username: (m['username'] as String?) ?? '',
+        displayName: (m['display_name'] as String?) ?? '',
+        avatarUrl: m['avatar_url'] as String?,
+        isAdmin: m['role'] == 'admin',
+      );
+}
+
 /// Kinds of entries on the Notifications tab.
 enum NotificationKind { like, follow, mention }
 

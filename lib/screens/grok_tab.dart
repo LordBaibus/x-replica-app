@@ -841,7 +841,7 @@ class _GrokTabState extends State<GrokTab> {
       ),
     ];
     return SizedBox(
-      height: 124,
+      height: textScaledHeight(context, 124),
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),

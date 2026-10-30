@@ -80,3 +80,10 @@ class FoldAwareSplit extends StatelessWidget {
     );
   }
 }
+
+/// A fixed height that grows with the phone's text size, for strips of cards
+/// whose text would otherwise overflow when the user picked a bigger font.
+double textScaledHeight(BuildContext context, double base) {
+  final s = MediaQuery.textScalerOf(context).scale(14) / 14;
+  return s > 1 ? base * (1 + (s - 1) * 0.6) : base;
+}

@@ -1142,16 +1142,41 @@ class Api {
         .toList();
   }
 
-  static Future<List<Message>> fetchMessages(String partnerId) async {
+  /// When I last "deleted" this chat (null = never).
+  static Future<DateTime?> _clearedAt(String chatId) async {
+    try {
+      final row = await _db
+          .from('chat_prefs')
+          .select('cleared_at')
+          .eq('user_id', uid)
+          .eq('chat_id', chatId)
+          .maybeSingle();
+      final v = row?['cleared_at'];
+      return v == null ? null : _parseTime(v);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  static DateTime _parseTime(dynamic v) => DateTime.parse(v as String);
+
+  static Future<List<Message>> fetchMessages(
+    String partnerId, {
+    int limit = 300,
+    bool newest = false,
+  }) async {
     final me = uid;
-    final rows = await _db
-        .from('messages')
-        .select()
-        .or('and(sender_id.eq.$me,receiver_id.eq.$partnerId),'
-            'and(sender_id.eq.$partnerId,receiver_id.eq.$me)')
-        .order('created_at', ascending: true)
-        .limit(300);
-    return rows.map<Message>(Message.fromMap).toList();
+    final cleared = await _clearedAt(partnerId);
+    var req = _db.from('messages').select().or(
+        'and(sender_id.eq.$me,receiver_id.eq.$partnerId),'
+        'and(sender_id.eq.$partnerId,receiver_id.eq.$me)');
+    if (cleared != null) {
+      req = req.gt('created_at', cleared.toUtc().toIso8601String());
+    }
+    final rows =
+        await req.order('created_at', ascending: !newest).limit(limit);
+    final list = rows.map<Message>(Message.fromMap).toList();
+    return newest ? list.reversed.toList() : list;
   }
 
   static Future<Message> sendMessage(
@@ -1225,6 +1250,189 @@ class Api {
         .update({'read_at': DateTime.now().toUtc().toIso8601String()})
         .eq('receiver_id', uid)
         .isFilter('read_at', null);
+    try {
+      await _db.rpc('mark_all_groups_read');
+    } catch (_) {
+      // Groups are optional; DMs were already marked.
+    }
+  }
+
+  // ---------------------------------------------------------------------
+  // Support: Contact us, Report a problem, ID verification, data archive
+  // ---------------------------------------------------------------------
+
+  /// kind: contact | problem | verification
+  static Future<void> submitTicket({
+    required String kind,
+    required String subject,
+    required String message,
+  }) async {
+    await _db.from('support_tickets').insert({
+      'kind': kind,
+      'subject': subject.trim(),
+      'message': message.trim(),
+    });
+  }
+
+  /// My requests, newest first ([kinds] limits which ones).
+  static Future<List<SupportTicket>> fetchTickets({List<String>? kinds}) async {
+    var req = _db.from('support_tickets').select().eq('user_id', uid);
+    if (kinds != null) req = req.inFilter('kind', kinds);
+    final rows = await req.order('created_at', ascending: false).limit(50);
+    return rows.map<SupportTicket>(SupportTicket.fromMap).toList();
+  }
+
+  /// Everything the app stores about me, as JSON (for "Download an archive").
+  static Future<Map<String, dynamic>> exportMyData() async {
+    final res = await _db.rpc('export_my_data');
+    return Map<String, dynamic>.from(res as Map);
+  }
+
+  // ---------------------------------------------------------------------
+  // Chat list options (long-press): pin / mute / archive / unread / delete
+  // ---------------------------------------------------------------------
+
+  /// My options for every chat that has any: chat id -> options.
+  static Future<Map<String, ChatPref>> fetchChatPrefs() async {
+    final rows = await _db.from('chat_prefs').select().eq('user_id', uid);
+    return {
+      for (final r in rows) r['chat_id'] as String: ChatPref.fromMap(r),
+    };
+  }
+
+  /// Changes only the options that are passed.
+  static Future<void> setChatPref(
+    String chatId, {
+    bool? pinned,
+    bool? muted,
+    bool? archived,
+    bool? markedUnread,
+    DateTime? clearedAt,
+  }) async {
+    await _db.from('chat_prefs').upsert({
+      'user_id': uid,
+      'chat_id': chatId,
+      'pinned': ?pinned,
+      'muted': ?muted,
+      'archived': ?archived,
+      'marked_unread': ?markedUnread,
+      if (clearedAt != null)
+        'cleared_at': clearedAt.toUtc().toIso8601String(),
+    });
+  }
+
+  /// "Delete conversation": hides everything up to now for me only.
+  static Future<void> clearConversation(String chatId) => setChatPref(
+        chatId,
+        pinned: false,
+        archived: false,
+        markedUnread: false,
+        clearedAt: DateTime.now(),
+      );
+
+  // ---------------------------------------------------------------------
+  // Group chats
+  // ---------------------------------------------------------------------
+
+  /// Creates a group (I become its admin) and returns its id.
+  static Future<String> createGroup(String name, List<String> memberIds) async {
+    final id = await _db.rpc(
+      'create_group',
+      params: {'p_name': name.trim(), 'p_members': memberIds},
+    );
+    return id as String;
+  }
+
+  static Future<List<GroupChat>> fetchGroups() async {
+    final rows = await _db.rpc('my_groups') as List<dynamic>;
+    return rows
+        .map<GroupChat>(
+            (r) => GroupChat.fromMap((r as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  static Future<List<GroupMessage>> fetchGroupMessages(
+    String groupId, {
+    int limit = 300,
+    bool newest = false,
+  }) async {
+    final cleared = await _clearedAt(groupId);
+    var req = _db.from('group_messages').select().eq('group_id', groupId);
+    if (cleared != null) {
+      req = req.gt('created_at', cleared.toUtc().toIso8601String());
+    }
+    final rows =
+        await req.order('created_at', ascending: !newest).limit(limit);
+    final list = rows.map<GroupMessage>(GroupMessage.fromMap).toList();
+    return newest ? list.reversed.toList() : list;
+  }
+
+  static Future<GroupMessage> sendGroupMessage(
+    String groupId,
+    String text,
+  ) async {
+    final row = await _db
+        .from('group_messages')
+        .insert({
+          'group_id': groupId,
+          'sender_id': uid,
+          'content': text.trim(),
+        })
+        .select()
+        .single();
+    return GroupMessage.fromMap(row);
+  }
+
+  static Future<List<GroupMember>> fetchGroupMembers(String groupId) async {
+    final rows = await _db
+        .rpc('group_member_list', params: {'p_group': groupId}) as List<dynamic>;
+    return rows
+        .map<GroupMember>(
+            (r) => GroupMember.fromMap((r as Map).cast<String, dynamic>()))
+        .toList();
+  }
+
+  static Future<void> markGroupRead(String groupId) =>
+      _db.rpc('mark_group_read', params: {'p_group': groupId});
+
+  static Future<void> leaveGroup(String groupId) =>
+      _db.rpc('leave_group', params: {'p_group': groupId});
+
+  static Future<void> renameGroup(String groupId, String name) => _db.rpc(
+        'rename_group',
+        params: {'p_group': groupId, 'p_name': name.trim()},
+      );
+
+  static Future<void> addGroupMembers(String groupId, List<String> ids) =>
+      _db.rpc(
+        'add_group_members',
+        params: {'p_group': groupId, 'p_members': ids},
+      );
+
+  static Future<void> removeGroupMember(String groupId, String userId) =>
+      _db.rpc(
+        'remove_group_member',
+        params: {'p_group': groupId, 'p_user': userId},
+      );
+
+  /// Calls [onMessage] for every new message in a group I'm in (row level
+  /// security makes sure only members receive it).
+  static RealtimeChannel subscribeGroupMessages(
+    void Function(GroupMessage m) onMessage,
+  ) {
+    return _db
+        .channel('group-messages-${DateTime.now().microsecondsSinceEpoch}')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'group_messages',
+          callback: (payload) {
+            try {
+              onMessage(GroupMessage.fromMap(payload.newRecord));
+            } catch (_) {}
+          },
+        )
+        .subscribe();
   }
 
   /// Reactions on these messages: message id -> (user id -> emoji).

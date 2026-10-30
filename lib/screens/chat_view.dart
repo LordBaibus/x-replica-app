@@ -12,8 +12,8 @@ import '../services/api.dart';
 import '../widgets/anchored_popup.dart';
 import '../widgets/avatar.dart';
 import '../widgets/badges.dart';
+import '../widgets/shared_post_card.dart';
 import '../widgets/state_views.dart';
-import 'post_detail_screen.dart';
 import 'profile_view.dart';
 
 /// One-to-one conversation with live updates (Supabase realtime).
@@ -76,8 +76,6 @@ class _ChatViewState extends State<ChatView> {
   /// null while checking. false = closed inbox for me.
   bool? _canMessage;
   bool _closedDismissed = false;
-
-  static final RegExp _postLink = RegExp(r'xreplica://post/([0-9a-fA-F-]{36})');
 
   @override
   void initState() {
@@ -325,20 +323,6 @@ class _ChatViewState extends State<ChatView> {
   void _openProfile() => Navigator.of(context)
       .push(appRoute(ProfileScreen(userId: widget.partner.id)));
 
-  Future<void> _openLinkedPost(String id) async {
-    try {
-      final post = await Api.fetchPost(id);
-      if (!mounted) return;
-      if (post == null) {
-        showInfo(context, 'This post is not available.');
-        return;
-      }
-      await Navigator.of(context).push(appRoute(PostDetailScreen(post: post)));
-    } catch (e) {
-      if (mounted) showError(context, e);
-    }
-  }
-
   Future<void> _call() => notify(
         context,
         title: 'Calls',
@@ -534,46 +518,53 @@ class _ChatViewState extends State<ChatView> {
 
   Widget _bubble(Message m, AppPalette p, double maxWidth) {
     final mine = m.senderId == Api.uid;
-    final link = _postLink.firstMatch(m.content);
+    final postId = SharedPost.idIn(m.content);
+    final typed = postId == null ? m.content : SharedPost.textIn(m.content);
     final textColor = mine ? const Color(0xFFFFFFFF) : p.text;
-    final body = link == null
-        ? Text(
-            m.content,
-            style: TextStyle(color: textColor, fontSize: 16, height: 1.25),
-          )
-        : Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(CupertinoIcons.link, size: 16, color: textColor),
-                  const SizedBox(width: 6),
+    final bubbleRadius = BorderRadius.only(
+      topLeft: const Radius.circular(18),
+      topRight: const Radius.circular(18),
+      bottomLeft: Radius.circular(mine ? 18 : 4),
+      bottomRight: Radius.circular(mine ? 4 : 18),
+    );
+    // The coloured bubble with the words (left out when only a post was sent).
+    final Widget? textBubble = (postId != null && typed.isEmpty && m.replyTo == null)
+        ? null
+        : Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+            decoration: BoxDecoration(
+              color: mine ? p.accent : p.border,
+              borderRadius: bubbleRadius,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (m.replyTo != null) _replyQuote(m, mine, p),
+                if (typed.isNotEmpty)
                   Text(
-                    'Shared a post',
-                    style: TextStyle(
-                      color: textColor,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                      decoration: TextDecoration.underline,
-                      decorationColor: textColor,
-                    ),
-                  ),
-                ],
-              ),
-              if (m.content.replaceAll(link.group(0)!, '').trim().isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 4),
-                  child: Text(
-                    m.content.replaceAll(link.group(0)!, '').trim(),
+                    typed,
                     style: TextStyle(
                       color: textColor,
                       fontSize: 16,
                       height: 1.25,
                     ),
                   ),
-                ),
+              ],
+            ),
+          );
+    final Widget content = postId == null
+        ? textBubble!
+        : Column(
+            crossAxisAlignment:
+                mine ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (textBubble != null) ...[
+                textBubble,
+                const SizedBox(height: 4),
+              ],
+              SizedBox(width: maxWidth, child: SharedPostCard(postId: postId)),
             ],
           );
     final reactions = _reactions[m.id] ?? const <String, String>{};
@@ -592,30 +583,9 @@ class _ChatViewState extends State<ChatView> {
             constraints: BoxConstraints(maxWidth: maxWidth),
             child: Builder(
               builder: (bubbleContext) => GestureDetector(
-              onTap: link == null ? null : () => _openLinkedPost(link.group(1)!),
               onLongPress: () => _messageMenu(m, rectOf(bubbleContext)),
               onDoubleTap: () => _react(m, myEmoji == '❤️' ? null : '❤️'),
-              child: Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
-                decoration: BoxDecoration(
-                  color: mine ? p.accent : p.border,
-                  borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(mine ? 18 : 4),
-                    bottomRight: Radius.circular(mine ? 4 : 18),
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    if (m.replyTo != null) _replyQuote(m, mine, p),
-                    body,
-                  ],
-                ),
-              ),
+              child: content,
             ),
             ),
           ),

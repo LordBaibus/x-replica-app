@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 
 import '../core/app_palette.dart';
+import 'responsive.dart';
 import '../core/ui_helpers.dart';
 import '../models/models.dart';
 import '../screens/connect_screen.dart';
@@ -212,7 +213,7 @@ class _FollowCarouselState extends State<FollowCarousel> {
           )
         else
           SizedBox(
-            height: 232,
+            height: textScaledHeight(context, 232),
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 16),

@@ -10,6 +10,7 @@ import '../widgets/settings_kit.dart';
 import '../widgets/settings_parts.dart';
 import '../widgets/state_views.dart';
 import 'account_screens.dart';
+import 'support_screens.dart';
 
 Future<T?> _push<T>(BuildContext c, Widget page, {bool full = false}) =>
     Navigator.of(c).push<T>(appRoute<T>(page, fullscreen: full));
@@ -46,12 +47,8 @@ class SecurityScreen extends StatelessWidget {
           'ID verification',
           desc: 'Add an ID to your account so we can confirm you are a real '
               'person. Your ID is only used to verify your account.',
-          open: (c) => notify(
-            c,
-            title: 'ID verification',
-            message: 'ID verification is not available in this version of '
-                '${AppConfig.appName}.',
-          ),
+          open: (c) => Navigator.of(c)
+              .push(appRoute(const IdVerificationScreen())),
         ),
         const PSection('Additional password protection'),
         const PSwitch(

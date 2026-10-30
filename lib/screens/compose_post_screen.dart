@@ -1702,7 +1702,97 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
           ),
           child: SafeArea(
             child: ContentWidth(
-              child: Column(
+              // On a short screen (landscape with the keyboard open) the
+              // bars under the text would not fit: then they scroll along
+              // with the text instead of overflowing.
+              child: LayoutBuilder(builder: (context, box) {
+                final compact = box.maxHeight < 420;
+                Widget replyRow() => Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      border: Border(
+                        top: BorderSide(color: p.border, width: 0.5),
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: replying || _editing
+                              ? const SizedBox(height: 44)
+                              : GestureDetector(
+                                  behavior: HitTestBehavior.opaque,
+                                  onTap: _chooseReplyScope,
+                                  child: Padding(
+                                    padding: const EdgeInsets.symmetric(
+                                        vertical: 10),
+                                    child: Row(
+                                      children: [
+                                        Icon(
+                                          CupertinoIcons.globe,
+                                          size: 17,
+                                          color: p.accent,
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Flexible(
+                                          child: Text(
+                                            scope.sentence,
+                                            maxLines: 1,
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(
+                                              color: p.accent,
+                                              fontSize: 14,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                        ),
+                        ValueListenableBuilder<UndoHistoryValue>(
+                          valueListenable: _undo,
+                          builder: (context, v, _) => Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: v.canUndo ? _undo.undo : null,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    CupertinoIcons.arrow_uturn_left,
+                                    size: 20,
+                                    color: v.canUndo
+                                        ? p.accent
+                                        : p.subtext.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ),
+                              GestureDetector(
+                                behavior: HitTestBehavior.opaque,
+                                onTap: v.canRedo ? _undo.redo : null,
+                                child: Padding(
+                                  padding: const EdgeInsets.all(8),
+                                  child: Icon(
+                                    CupertinoIcons.arrow_uturn_right,
+                                    size: 20,
+                                    color: v.canRedo
+                                        ? p.accent
+                                        : p.subtext.withValues(alpha: 0.5),
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  );
+                return Column(
                 children: [
                   // Cancel ......................................... [Post]
                   Padding(
@@ -1854,99 +1944,22 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                           ),
                         ],
                       ),
+                          if (compact) ...[
+                            if (_mentions.isNotEmpty) _mentionList(p),
+                            if (scheduled) _scheduleBar(),
+                            if (_protectedReply) _protectedBanner(p),
+                            replyRow(),
+                          ],
                         ],
                       ),
                     ),
                   ),
-                  if (_mentions.isNotEmpty) _mentionList(p),
-                  if (scheduled) _scheduleBar(),
-                  if (_protectedReply) _protectedBanner(p),
-                  // 🌐 Everyone can reply ........................ ↶  ↷
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      border: Border(
-                        top: BorderSide(color: p.border, width: 0.5),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: replying || _editing
-                              ? const SizedBox(height: 44)
-                              : GestureDetector(
-                                  behavior: HitTestBehavior.opaque,
-                                  onTap: _chooseReplyScope,
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                        vertical: 10),
-                                    child: Row(
-                                      children: [
-                                        Icon(
-                                          CupertinoIcons.globe,
-                                          size: 17,
-                                          color: p.accent,
-                                        ),
-                                        const SizedBox(width: 6),
-                                        Flexible(
-                                          child: Text(
-                                            scope.sentence,
-                                            maxLines: 1,
-                                            overflow: TextOverflow.ellipsis,
-                                            style: TextStyle(
-                                              color: p.accent,
-                                              fontSize: 14,
-                                              fontWeight: FontWeight.w600,
-                                            ),
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                        ),
-                        ValueListenableBuilder<UndoHistoryValue>(
-                          valueListenable: _undo,
-                          builder: (context, v, _) => Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: v.canUndo ? _undo.undo : null,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Icon(
-                                    CupertinoIcons.arrow_uturn_left,
-                                    size: 20,
-                                    color: v.canUndo
-                                        ? p.accent
-                                        : p.subtext.withValues(alpha: 0.5),
-                                  ),
-                                ),
-                              ),
-                              GestureDetector(
-                                behavior: HitTestBehavior.opaque,
-                                onTap: v.canRedo ? _undo.redo : null,
-                                child: Padding(
-                                  padding: const EdgeInsets.all(8),
-                                  child: Icon(
-                                    CupertinoIcons.arrow_uturn_right,
-                                    size: 20,
-                                    color: v.canRedo
-                                        ? p.accent
-                                        : p.subtext.withValues(alpha: 0.5),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
+                  if (!compact) ...[
+                    if (_mentions.isNotEmpty) _mentionList(p),
+                    if (scheduled) _scheduleBar(),
+                    if (_protectedReply) _protectedBanner(p),
+                    replyRow(),
+                  ],
                   // Toolbar: media tools ........................ ◯ | ⊕
                   Container(
                     padding: const EdgeInsets.fromLTRB(7, 0, 14, 4),
@@ -2053,7 +2066,8 @@ class _ComposePostScreenState extends State<ComposePostScreen> {
                     ),
                   ),
                 ],
-              ),
+              );
+              }),
             ),
           ),
         ),

@@ -1,7 +1,6 @@
 import 'package:adaptive_platform_ui/adaptive_platform_ui.dart';
 import 'package:flutter/widgets.dart';
 
-import '../core/app_icons.dart';
 import '../core/app_palette.dart';
 import '../core/ui_helpers.dart';
 import '../core/validators.dart';
@@ -72,13 +71,7 @@ class _ChangePasswordScreenState extends State<ChangePasswordScreen> {
 
     Widget field(TextEditingController c, String hint) => Padding(
           padding: const EdgeInsets.only(bottom: 12),
-          child: AppTextField(
-            controller: c,
-            placeholder: hint,
-            obscureText: true,
-            autocorrect: false,
-            prefixIcon: Icon(AppIcons.lock, size: 18, color: p.subtext),
-          ),
+          child: PasswordField(controller: c, placeholder: hint),
         );
 
     return AdaptiveScaffold(

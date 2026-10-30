@@ -13,6 +13,12 @@
 #
 # Before the app can show anything, run supabase/schema.sql and then
 # supabase/seed.sql once in the Supabase SQL editor (see README.md).
+# schema.sql is safe to run again: re-run it whenever it changes. Group chats,
+# the chat long-press options (pin / mute / archive / delete) and the support
+# tickets (Contact us, Report a problem, ID verification, data archive) live in
+# its sections 17-19, so a build made from this code needs that re-run or those
+# screens show an error. No new packages or Android / iOS permissions were
+# added, so this file needs no other change.
 #
 # ── iOS with a FREE Apple developer account ─────────────────────────────────
 # Codemagic can only sign iOS apps with certificates from the PAID Apple

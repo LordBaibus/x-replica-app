@@ -1,8 +1,4 @@
-/// Shown in Settings → Developer info.
-///
-/// TODO(group): replace the placeholder entries below with your real group
-/// members and what each person actually built. The assignment requires every
-/// member and their contribution to be listed.
+/// Shown in Settings → Developer info (every group member and what they did).
 class Developer {
   const Developer({
     required this.name,
@@ -16,39 +12,62 @@ class Developer {
 }
 
 const String courseLine = 'Final Project · Cross-Platform Mobile Development';
-const String groupName = 'Group Name (replace me)';
+const String groupName = 'BSCPE-4A';
 
 const List<Developer> developers = [
   Developer(
-    name: 'Member 1 Full Name',
-    role: 'Project Lead / Backend',
+    name: 'Jairus Legor C. Maniago',
+    role: 'Group Leader · Project Lead / Backend',
     contributions: [
-      'Supabase schema, row level security and storage buckets',
-      'Authentication: register, login, change password',
+      'Project planning, app structure and putting everyone’s work together',
+      'Supabase schema, row level security, storage buckets and seed data',
+      'Authentication: register, login with e-mail codes, change password',
+      'Android and iOS builds (Codemagic) and the GitHub repository',
     ],
   ),
   Developer(
-    name: 'Member 2 Full Name',
-    role: 'Frontend / Feed',
+    name: 'Aron Alvarez',
+    role: 'Frontend / Newsfeed',
     contributions: [
-      'Newsfeed, post composer and image uploads',
-      'Likes and Following / For you timelines',
+      'Newsfeed: For you and Following timelines',
+      'Post composer: text, photos, polls and replies',
+      'Likes, reposts, bookmarks and the post page',
     ],
   ),
   Developer(
-    name: 'Member 3 Full Name',
-    role: 'Social / Messaging',
+    name: 'Lenard Dela Cruz',
+    role: 'Messaging / Notifications',
     contributions: [
-      'Real-time direct messaging',
-      'Follow system and people search',
+      'Real-time direct messages',
+      'Chat settings and the notifications tab',
+      'Notes (short status)',
     ],
   ),
   Developer(
-    name: 'Member 4 Full Name',
-    role: 'Profile / QA',
+    name: 'Dwayne Guevarra',
+    role: 'Profile / Social',
     contributions: [
-      'Profile management and avatar upload',
-      'Testing and release builds',
+      'Profile page, edit profile and avatar / header upload',
+      'Follow system, followers and following lists',
+      'People search and Who to follow',
+    ],
+  ),
+  Developer(
+    name: 'Shannon Santos',
+    role: 'UI / UX Design',
+    contributions: [
+      'X-style look: icons, light and dark theme, tab bar',
+      'Settings and privacy screens',
+      'Communities and Lists screens',
+    ],
+  ),
+  Developer(
+    name: 'Adrian Tedios',
+    role: 'Testing / Documentation',
+    contributions: [
+      'Testing on Android and iOS and reporting bugs',
+      'Writing the README and the setup guide',
+      'Demo accounts and sample posts for the presentation',
     ],
   ),
 ];

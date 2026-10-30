@@ -6,10 +6,10 @@ import '../core/ui_helpers.dart';
 import '../services/api.dart';
 import '../services/grok_history.dart';
 import '../services/user_prefs.dart';
-import '../widgets/settings_fields.dart';
 import '../widgets/settings_kit.dart';
 import '../widgets/settings_parts.dart';
 import 'account_screens.dart';
+import 'support_screens.dart';
 
 Future<T?> _push<T>(BuildContext c, Widget page) =>
     Navigator.of(c).push<T>(appRoute<T>(page));
@@ -255,12 +255,10 @@ class AboutAccountScreen extends StatelessWidget {
         PAction(
           'Report a problem',
           color: AppPalette.light.accent,
-          run: (c) async => notify(
-            c,
-            title: 'Report a problem',
-            message: 'Thanks! Reporting is not connected in this version of '
-                '${AppConfig.appName}.',
-          ),
+          run: (c) async {
+            await Navigator.of(c)
+                .push(appRoute(const ContactUsScreen(problem: true)));
+          },
         ),
       ],
     );
@@ -271,12 +269,8 @@ class AboutAccountScreen extends StatelessWidget {
 // Ads, inferred identity, data sharing, location
 // ===========================================================================
 
-void _seeData(BuildContext c) => notify(
-      c,
-      title: 'See your X data',
-      message: 'Your data download is not available in this version of '
-          '${AppConfig.appName}.',
-    );
+void _seeData(BuildContext c) =>
+    Navigator.of(c).push(appRoute(const DataArchiveScreen()));
 
 class AdsPreferencesScreen extends StatelessWidget {
   const AdsPreferencesScreen({super.key});

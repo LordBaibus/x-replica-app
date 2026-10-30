@@ -470,7 +470,8 @@ class _PasscodeEntryState extends State<PasscodeEntry> {
                   maxWidth: 560,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Column(
+                    child: SingleChildScrollView(
+                      child: Column(
                       children: [
                         const SizedBox(height: 40),
                         PasscodeGlyph(size: 44, color: p.text),
@@ -557,6 +558,7 @@ class _PasscodeEntryState extends State<PasscodeEntry> {
                           ),
                         ),
                       ],
+                    ),
                     ),
                   ),
                 ),

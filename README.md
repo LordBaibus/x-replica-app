@@ -283,3 +283,13 @@ The project asks for a feature for *short, temporary status updates*. This app h
 * **Protected reply > Learn more:** opens a short explanation of who can see a reply from a protected account.
 * **For you menu:** the "For you" tab has a "⌄". Tap it while it is active: Snooze topics or Refresh. *Snooze Topics* (Politics, Sports, Business & Finance, Science & Technology, Entertainment & Arts, Artificial Intelligence, Gaming, Crypto, Videos) hides those posts from For you for 24 hours; Reset clears it. Topics are matched by words in the post (and "any video" for Videos); the snooze is stored in the account's `user_prefs`, so it follows the account.
 * **Polls:** the shortest poll is 5 minutes. The length wheels snap back to 5 min, and `schema.sql` (section 16) has a trigger so the database refuses shorter polls too (re-run `schema.sql`).
+
+## Group chats, chat options and support (latest round)
+
+Re-run `supabase/schema.sql` (sections 17-19) for these.
+
+* **Group chats:** New chat > *Create group*: name it, pick people, create. Admins can rename, add and remove people; anybody can leave (the oldest member becomes admin if the last admin leaves; an empty group is deleted). Only members can read a group (row level security); groups and members change only through functions, so nobody can add themselves. Groups appear in the Chat list next to 1-to-1 chats, with the *Groups* filter.
+* **Shared posts in chats:** a post sent in a message shows as a preview card (author, text, first picture) instead of a link; tap it to open the post. The chat list shows "Shared a post".
+* **Long-press a chat:** a preview of the latest messages plus *Mark as unread*, *Pin*, *Mute*, *Archive* and *Delete conversation* (*Leave group* for groups). They are saved per account in `chat_prefs`. Delete only hides the messages for you. Mute greys the unread badge; the app has no push notifications, so that is all mute can do here.
+* **Support (Settings and privacy):** *Contact us*, *Report a problem* and *ID verification* write to `support_tickets`; the team changes `status` and writes `reply` in the Supabase dashboard and the person sees it in the app. ID verification never asks for an ID number or photo. *Download an archive of your data* calls `export_my_data()` and copies everything as JSON. *Privacy center* and *Privacy policy* are in-app pages.
+* **Still only stored, no effect:** e-mail / SMS notification switches, ad personalisation, calls, passkey and similar rows save their value (and sync with the account) but there is no e-mail service, ad system, calling or passkey backend in this project.

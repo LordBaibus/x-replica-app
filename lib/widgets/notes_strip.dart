@@ -32,8 +32,12 @@ class NotesStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Tall enough for a 3-line bubble + picture + name, and it grows with the
+    // phone's text size so the column never overflows.
+    final scale = MediaQuery.textScalerOf(context).scale(12) / 12;
+    final extra = scale > 1 ? (scale - 1) * 60 : 0.0;
     return SizedBox(
-      height: 136,
+      height: 158 + extra,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -96,6 +100,7 @@ class _NoteItem extends StatelessWidget {
       child: SizedBox(
         width: NotesStrip._itemWidth,
         child: Column(
+          mainAxisSize: MainAxisSize.max,
           mainAxisAlignment: MainAxisAlignment.end,
           children: [
             // Speech bubble.

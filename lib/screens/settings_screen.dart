@@ -15,6 +15,7 @@ import 'privacy_screens.dart';
 import 'security_screens.dart';
 import 'settings_extra_screens.dart';
 import 'subscription_screen.dart';
+import 'support_screens.dart';
 
 /// Asks for confirmation, signs out and returns to the sign-in screen.
 Future<void> logOutWithConfirm(BuildContext context) async {
@@ -206,11 +207,12 @@ class _Catalog {
           desc: 'Change your password at any time.',
           open: (c) => _go(c, const UpdatePasswordScreen()),
         ),
-        const SettingsEntry(
+        SettingsEntry(
           'Download an archive of your data',
           icon: CupertinoIcons.arrow_down_to_line,
           desc: 'Get insights into the type of information stored for your '
               'account.',
+          open: (c) => _go(c, const DataArchiveScreen()),
         ),
         SettingsEntry(
           'Deactivate your account',
@@ -350,10 +352,19 @@ class _Catalog {
             open: (c) => _go(c, const GrokCollaboratorsScreen()),
           ),
         ]),
-        const SettingsSection(title: 'Learn more about privacy on X', [
-          SettingsEntry('Privacy center'),
-          SettingsEntry('Privacy policy'),
-          SettingsEntry('Contact us'),
+        SettingsSection(title: 'Learn more about privacy on X', [
+          SettingsEntry(
+            'Privacy center',
+            open: (c) => _go(c, const PrivacyCenterScreen()),
+          ),
+          SettingsEntry(
+            'Privacy policy',
+            open: (c) => _go(c, const PrivacyPolicyScreen()),
+          ),
+          SettingsEntry(
+            'Contact us',
+            open: (c) => _go(c, const ContactUsScreen()),
+          ),
         ]),
       ];
 
